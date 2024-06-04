@@ -20,6 +20,7 @@ use App\Http\Controllers\SatuSehatTesting;
 //     return $request->user();
 // });
 
-Route::get('/generateSatuSehatUrl', [SatuSehatTesting::class, 'index'])->name('satusehatapi.generateUrl');
-Route::get('/satusehat/bundle/visit/{visitId}', [SatuSehatController::class, 'bundle'])->name('satusehatapi.bundle');
-Route::get('/testing', [SatuSehatController::class, 'testGetRacik']);
+Route::post('/generateSatuSehatUrl', [SatuSehatController::class, 'getKycLink'])->name('satusehatapi.generateUrl');
+Route::post('/satusehat/bundle/visit', [SatuSehatController::class, 'bundle'])->name('satusehatapi.bundle');
+
+// Route::get('/testing', [SatuSehatController::class, 'testGetRacik']);

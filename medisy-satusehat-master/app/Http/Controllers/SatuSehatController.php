@@ -12,6 +12,7 @@ use App\Models\Perusahaan;
 use App\Models\Pendaftaran;
 use Illuminate\Http\Request;
 use App\Models\CatatanPasien;
+use Satusehat\Integration\KYC;
 use App\Models\SatusehatPhase;
 use App\Models\SatusehatAllergy;
 use App\Models\RuanganPemeriksaan;
@@ -23,8 +24,9 @@ use PhpParser\Node\Stmt\Continue_;
 
 class SatuSehatController extends Controller
 {
-    public function bundle($visitId)
+    public function bundle(Request $request)
     {
+        $visitId = $request->visit_id;
         $kunjungan = Kunjungan::where('id', $visitId)->first();
 
         $pendaftaran = Pendaftaran::where('id', $kunjungan['id_pendaftaran'])->first();
@@ -248,6 +250,34 @@ class SatuSehatController extends Controller
             return $response_array['data'];
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+
+    public function getKycLink(Request $request)
+    {
+        $nama = $request->nama;
+        $nik = $request->nik;
+
+        dd([$nama, $nik]);
+
+        $kyc = new KYC;
+        try {
+
+            $json = $kyc->generateUrl($nama, $nik);
+            $kyc_link = json_decode($json, true);
+            $dataKyc = [
+                'url' => $kyc_link['data']['url'],
+                'message' => 'success'
+            ];
+
+            if (empty($dataKyc['data']['url'])) {
+                return response()->json(['message' => 'Data URL is empty or not set'], 404);
+            }
+
+            return response()->json($dataKyc);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Terjadi kesalahan saat generate data'], 500);
         }
     }
 }

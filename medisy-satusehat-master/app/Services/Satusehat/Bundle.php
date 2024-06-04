@@ -800,9 +800,8 @@ class Bundle
             "entry" => $this->bundleEntry
         ];
 
-        echo json_encode($body);
-        die;
-
+        // echo json_encode($body);
+        // die;
 
         if (empty($this->bundleEntry)) {
             return [
