@@ -259,8 +259,6 @@ class SatuSehatController extends Controller
         $nama = $request->nama;
         $nik = $request->nik;
 
-        dd([$nama, $nik]);
-
         $kyc = new KYC;
         try {
 
@@ -271,7 +269,7 @@ class SatuSehatController extends Controller
                 'message' => 'success'
             ];
 
-            if (empty($dataKyc['data']['url'])) {
+            if (!empty($dataKyc['data']['url'])) {
                 return response()->json(['message' => 'Data URL is empty or not set'], 404);
             }
 
