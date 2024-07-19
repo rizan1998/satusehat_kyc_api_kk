@@ -12,23 +12,22 @@ use App\Models\Perusahaan;
 use App\Models\Pendaftaran;
 use Illuminate\Http\Request;
 use App\Models\CatatanPasien;
-use Satusehat\Integration\KYC;
 use App\Models\SatusehatPhase;
+use Satusehat\Integration\KYC;
 use App\Models\SatusehatAllergy;
 use App\Models\RuanganPemeriksaan;
 use App\Services\Satusehat\Bundle;
+use PhpParser\Node\Stmt\Continue_;
 use App\Models\AntrianMasukRuangan;
 use App\Models\PemeriksaanTindakan;
+use Illuminate\Support\Facades\Log;
 use App\Models\View\VPemeriksaanDiagnosa;
-use PhpParser\Node\Stmt\Continue_;
 
 class SatuSehatController extends Controller
 {
-    public function bundle(Request $request)
+    public function bundle($visitId)
     {
-        $visitId = $request->visit_id;
         $kunjungan = Kunjungan::where('id', $visitId)->first();
-
         $pendaftaran = Pendaftaran::where('id', $kunjungan['id_pendaftaran'])->first();
 
         if (!empty($pendaftaran['id_pasien_satusehat'])) {
@@ -275,7 +274,14 @@ class SatuSehatController extends Controller
 
             return response()->json($dataKyc);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Terjadi kesalahan saat generate data'], 500);
+            // Log the error message and stack trace
+            Log::error('Error generating URL: ' . $e->getMessage(), ['exception' => $e]);
+
+            // Return a detailed error response
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat generate data',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 }

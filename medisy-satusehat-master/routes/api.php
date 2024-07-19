@@ -21,6 +21,6 @@ use App\Http\Controllers\SatuSehatTesting;
 // });
 
 Route::post('/generateSatuSehatUrl', [SatuSehatController::class, 'getKycLink'])->name('satusehatapi.generateUrl');
-Route::post('/satusehat/bundle/visit', [SatuSehatController::class, 'bundle'])->name('satusehatapi.bundle');
+Route::get('/satusehat/bundle/visit/{visitId}', [SatuSehatController::class, 'bundle'])->name('satusehatapi.bundle');
 
 // Route::get('/testing', [SatuSehatController::class, 'testGetRacik']);

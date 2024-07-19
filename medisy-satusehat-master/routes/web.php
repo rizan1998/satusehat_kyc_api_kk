@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\{SatuSehatTesting};
+use App\Models\Perusahaan;
 
 /*
 |--------------------------------------------------------------------------
@@ -15,5 +16,7 @@ use App\Http\Controllers\{SatuSehatTesting};
 */
 
 Route::get('/', function () {
-    return abort(404);
+    // return abort(404);
+    $perusahaan = Perusahaan::first();
+    dd($perusahaan);
 });
