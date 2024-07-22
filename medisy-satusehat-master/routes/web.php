@@ -16,7 +16,5 @@ use App\Models\Perusahaan;
 */
 
 Route::get('/', function () {
-    // return abort(404);
-    $perusahaan = Perusahaan::first();
-    dd($perusahaan);
+    return abort(404);
 });
