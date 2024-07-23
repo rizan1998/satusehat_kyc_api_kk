@@ -62,14 +62,14 @@ class SatuSehatController extends Controller
                     $satusehat_phases->id_encounter = $bundle->setEncounterAmbulatory($kunjungan->ucode, $dokter, $antrianMasukAnamnesa->created, $antrianMasukAnamnesa->updated, $antrianMasukDokter->created, $antrianMasukDokter->updated, $location);
                 }
 
-                $patientNote = CatatanPasien::with('SatusehatAllergy')
-                    ->where('satusehat_status', 0)
-                    ->where('satusehat_code', '!=', "")
-                    ->where('jenis', '!=', 'penyakit-lama')
-                    ->where('jenis', '!=', 'penyakit-keluarga')
-                    ->where('id_pendaftaran', $pendaftaran->id)
-                    ->where('ket', '!=', 'DELETE')
-                    ->get();
+                // $patientNote = CatatanPasien::with('SatusehatAllergy')
+                //     ->where('satusehat_status', 0)
+                //     ->where('satusehat_code', '!=', "")
+                //     ->where('jenis', '!=', 'penyakit-lama')
+                //     ->where('jenis', '!=', 'penyakit-keluarga')
+                //     ->where('id_pendaftaran', $pendaftaran->id)
+                //     ->where('ket', '!=', 'DELETE')
+                //     ->get();
 
 
                 // $patientNoteIds = [];
@@ -78,7 +78,7 @@ class SatuSehatController extends Controller
                 //     $allergies = SatusehatAllergy::whereIn('code', $patientAllergies)->get()->keyBy('code');
                 //     foreach ($patientNote as $note) {
                 //         $note->satusehat = $allergies[$note['satusehat_code']];
-                //         $patientNoteIds[] = $note->id;
+                //         $patientNoteIds[] = $sanote->id;
 
                 //         $bundle->setAllergyIntolerance($prefixEncounter . $satusehat_phases->id_encounter, $note, $dokter);
                 //     }
@@ -130,37 +130,37 @@ class SatuSehatController extends Controller
 
                 // $resepObat = ResepObat::with('obat', 'obat.satuan', 'medication_form', 'route', 'satuan_dosis')->where('id_kunjungan', $kunjungan->id)->get();
 
-                $resepObat = ResepObat::where('id_kunjungan', $kunjungan->id)->get();
-                $racikObat = Racik::with('obat')->where('id_kunjungan', $kunjungan->id)->get();
-                $resepObatIds = [];
-                $racikObatIds = [];
-                if (empty($satusehat_phases->medication)) {
-                    foreach ($resepObat as $resep) {
-                        // var_dump($resep);
-                        // die;
-                        $dataObat = $this->getDataObat($resep->id_obat, $resep->medication_form_code, $resep->satusehat_route_code, $resep->id_satuan_dosis);
-                        // return json_encode($dataObat);
-                        $dataObat['resep'] = $resep;
+                // $resepObat = ResepObat::where('id_kunjungan', $kunjungan->id)->get();
+                // $racikObat = Racik::with('obat')->where('id_kunjungan', $kunjungan->id)->get();
+                // $resepObatIds = [];
+                // $racikObatIds = [];
+                // if (empty($satusehat_phases->medication)) {
+                //     foreach ($resepObat as $resep) {
+                //         // var_dump($resep);
+                //         // die;
+                //         $dataObat = $this->getDataObat($resep->id_obat, $resep->medication_form_code, $resep->satusehat_route_code, $resep->id_satuan_dosis);
+                //         // return json_encode($dataObat);
+                //         $dataObat['resep'] = $resep;
 
 
-                        if (count($dataObat['obat']) > 0 && count($dataObat['medication']) > 0 && count($dataObat['route']) > 0 && count($dataObat['dosis']) > 0) {
-                            $resepObatIds[] = $resep->id;
-                            $bundle->setMedicationPrescription($prefixEncounter . $satusehat_phases->id_encounter, $dokter, $dataObat);
-                        }
-                    }
+                //         if (count($dataObat['obat']) > 0 && count($dataObat['medication']) > 0 && count($dataObat['route']) > 0 && count($dataObat['dosis']) > 0) {
+                //             $resepObatIds[] = $resep->id;
+                //             $bundle->setMedicationPrescription($prefixEncounter . $satusehat_phases->id_encounter, $dokter, $dataObat);
+                //         }
+                //     }
 
 
-                    foreach ($racikObat as $racik) {
-                        $dataObatRacik = $this->getDataObat("", $racik->medication_form_code, $racik->satusehat_route_code, $racik->id_satuan_dosis);
-                        $dataObatRacik['racik'] = $racik;
-                        // dd($dataObatRacik);
+                //     foreach ($racikObat as $racik) {
+                //         $dataObatRacik = $this->getDataObat("", $racik->medication_form_code, $racik->satusehat_route_code, $racik->id_satuan_dosis);
+                //         $dataObatRacik['racik'] = $racik;
+                //         // dd($dataObatRacik);
 
-                        if (count($dataObatRacik['medication']) > 0 && count($dataObatRacik['dosis'])) {
-                            $racikObatIds[] = $racik->id;
-                            $bundle->setMedicationPrescriptionMixed($prefixEncounter . $satusehat_phases->id_encounter, $dokter, $dataObatRacik);
-                        }
-                    }
-                }
+                //         if (count($dataObatRacik['medication']) > 0 && count($dataObatRacik['dosis'])) {
+                //             $racikObatIds[] = $racik->id;
+                //             $bundle->setMedicationPrescriptionMixed($prefixEncounter . $satusehat_phases->id_encounter, $dokter, $dataObatRacik);
+                //         }
+                //     }
+                // }
 
                 // echo json_encode($bundle);
                 // die;
@@ -175,9 +175,9 @@ class SatuSehatController extends Controller
                     $satusehat_phases->save();
 
                     // CatatanPasien::whereIn('id', $patientNoteIds)->update(['satusehat_status' => true]);
-                    // PemeriksaanTindakan::whereIn('id', $pemeriksaanTindakanIds)->update(['satusehat_status' => true]);
-                    ResepObat::whereIn('id', $resepObatIds)->update(['satusehat_status' => true]);
-                    Racik::whereIn('id', $racikObatIds)->update(['satusehat_status' => true]);
+                    PemeriksaanTindakan::whereIn('id', $pemeriksaanTindakanIds)->update(['satusehat_status' => true]);
+                    // ResepObat::whereIn('id', $resepObatIds)->update(['satusehat_status' => true]);
+                    // Racik::whereIn('id', $racikObatIds)->update(['satusehat_status' => true]);
                 }
 
                 return response()->json($result);
