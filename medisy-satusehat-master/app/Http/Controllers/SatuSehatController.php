@@ -45,7 +45,7 @@ class SatuSehatController extends Controller
                 $antrianMasukDokter = AntrianMasukRuangan::where('id_antrian', $kunjungan['id_antrian'])->where('keterangan', AntrianMasukRuangan::KETERANGAN_DOKTER)->first();
                 $getLocation = RuanganPemeriksaan::where('id_ruangan_satusehat', $kunjungan->id_location)->first();
                 if (empty($getLocation)) {
-                    return response()->json(['ket' => 'no', 'message' => 'Lokasi is not found']);
+                    return response()->json(['ket' => 'no', 'message' => 'Lokasi is not found', 'status' => false]);
                 }
 
                 $location = [
@@ -178,15 +178,18 @@ class SatuSehatController extends Controller
                     PemeriksaanTindakan::whereIn('id', $pemeriksaanTindakanIds)->update(['satusehat_status' => true]);
                     // ResepObat::whereIn('id', $resepObatIds)->update(['satusehat_status' => true]);
                     // Racik::whereIn('id', $racikObatIds)->update(['satusehat_status' => true]);
-                }
 
-                return response()->json($result);
+                    // return response()->json($result);
+                    return response()->json(['ket' => 'no', 'message' => 'data terkirim', 'status' => true]);
+                } else {
+                    return response()->json(['ket' => 'no', 'message' => 'data tidak terkirim', 'status' => false]);
+                }
             } catch (\Exception $e) {
                 throw $e;
-                return response()->json(['ket' => 'no', 'message' => $e->getMessage()]);
+                return response()->json(['ket' => 'no', 'message' => $e->getMessage(), 'status' => false]);
             }
         } else {
-            return response()->json(['ket' => 'no', 'message' => 'Pasien belum terverifikasi satu sehat']);
+            return response()->json(['ket' => 'no', 'message' => 'Pasien belum terverifikasi satu sehat', 'status' => false]);
         }
     }
 
