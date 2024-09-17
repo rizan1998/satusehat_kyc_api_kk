@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Racik;
 use GuzzleHttp\Client;
+use App\Jobs\bundleBatch;
 use App\Models\Kunjungan;
 use App\Models\RacikObat;
 use App\Models\ResepObat;
@@ -191,6 +192,15 @@ class SatuSehatController extends Controller
         } else {
             return response()->json(['ket' => 'no', 'message' => 'Pasien belum terverifikasi satu sehat', 'status' => false]);
         }
+    }
+
+    public function bundleBatch(Request $request)
+    {
+        $start = $request->start;
+        $end = $request->end;
+        dispatch(new bundleBatch($start, $end));
+
+        return response()->json(['ket' => 'yes', 'message' => 'proses pengiriman selesai', 'status' => true]);
     }
 
 

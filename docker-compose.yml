@@ -18,8 +18,22 @@ services:
       - ./medisy-satusehat-master:/var/www
       - ./medisy-satusehat-master/public:/var/www/html
       - ./.env:/var/www/.env
+      - ./medisy-satusehat-master/storage:/var/www/storage
     environment:
       - app_name=Satu sehat API
+    networks:
+      - himed_network
+
+  satusehat_kyc_api_kk_queue:
+    container_name: satusehat_kyc_api_kk_queue
+    image: rizan1998/satusehat_kyc_api_kk
+    restart: unless-stopped
+    command: php artisan queue:work
+    volumes:
+      - ./medisy-satusehat-master:/var/www
+      - ./medisy-satusehat-master/public:/var/www/html
+      - ./.env:/var/www/.env
+      - ./medisy-satusehat-master/storage:/var/www/storage
     networks:
       - himed_network
 
