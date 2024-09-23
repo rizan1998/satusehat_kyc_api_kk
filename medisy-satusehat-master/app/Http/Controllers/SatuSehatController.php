@@ -198,7 +198,11 @@ class SatuSehatController extends Controller
     {
         $start = $request->start;
         $end = $request->end;
-        dispatch(new bundleBatch($start, $end));
+        $kunjungans = Kunjungan::whereBetween('tanggal', [$start, $end])->get();
+        foreach ($kunjungans as $kunjungan) {
+            dispatch(new bundleBatch($kunjungan));
+        }
+
 
         return response()->json(['ket' => 'yes', 'message' => 'proses pengiriman selesai', 'status' => true]);
     }

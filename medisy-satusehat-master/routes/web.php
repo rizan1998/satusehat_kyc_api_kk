@@ -1,8 +1,9 @@
 <?php
 
+use App\Models\Perusahaan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\{SatuSehatTesting};
-use App\Models\Perusahaan;
 
 /*
 |--------------------------------------------------------------------------
@@ -18,3 +19,6 @@ use App\Models\Perusahaan;
 Route::get('/', function () {
     return abort(404);
 });
+
+
+

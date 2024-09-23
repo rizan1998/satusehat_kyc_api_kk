@@ -1,9 +1,10 @@
 <?php
 
-use App\Http\Controllers\SatuSehatController;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SatuSehatTesting;
+use App\Http\Controllers\SatuSehatController;
 
 /*
 |--------------------------------------------------------------------------
@@ -25,3 +26,6 @@ Route::get('/satusehat/bundle/visit/{visitId}', [SatuSehatController::class, 'bu
 Route::post('/satusehat/bundleBatch/send', [SatuSehatController::class, 'bundleBatch'])->name('satusehatapi.bundleBatch');
 
 // Route::get('/testing', [SatuSehatController::class, 'testGetRacik']);
+Route::get('/perusahaan', function () {
+    // dd(DB::table('kk_perusahaan')->first());
+});
