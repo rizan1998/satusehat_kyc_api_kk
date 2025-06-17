@@ -2,14 +2,15 @@
 
 namespace App\Services\Satusehat;
 
-use App\Models\CatatanPasien;
-use App\Models\Perusahaan;
 use DateTime;
 use DateTimeZone;
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\ClientException;
-use GuzzleHttp\Psr7\Request;
 use Ramsey\Uuid\Uuid;
+use GuzzleHttp\Client;
+use App\Models\Perusahaan;
+use GuzzleHttp\Psr7\Request;
+use App\Models\CatatanPasien;
+use Illuminate\Support\Facades\Log;
+use GuzzleHttp\Exception\ClientException;
 
 class Bundle
 {
@@ -29,6 +30,11 @@ class Bundle
 
     public function setEncounterAmbulatory($kunjungan_id, $dokter, $anamnesisStart, $anamnesisEnd, $pemeriksaanStart, $pemeriksaanEnd, $location)
     {
+
+        if ($dokter->satusehat_mode == 'pribadi') {
+            $this->organizationID = $dokter->organization_id;
+        }
+
         $id = Uuid::uuid4()->toString();
         $this->bundleEntry[] = [
             "fullUrl" => "urn:uuid:" . $id,
@@ -826,6 +832,84 @@ class Bundle
         ];
 
         $url = $oAuthClient->base_url;
+        $request = new Request('POST', $url, $headers, collect($body));
+
+        try {
+            $res = $client->sendAsync($request)->wait();
+            $statusCode = $res->getStatusCode();
+            $response = json_decode($res->getBody()->getContents(), true);
+        } catch (ClientException $e) {
+            $statusCode = $e->getResponse()->getStatusCode();
+            $response = json_decode($e->getResponse()->getBody()->getContents(), true);
+        }
+
+        if ($statusCode == 200) {
+            if ($response['entry'][0]['response']['resourceID'] == 'Encounter') {
+                $idEncounter = $response['entry'][0]['response']['resourceID'];
+            }
+            return [
+                'ket' => 'yes',
+                'result' => $response,
+                'body' => json_encode($body),
+                'id_encounter' => $idEncounter,
+            ];
+        } else if ($statusCode == 400) {
+            return [
+                'key' => 'no',
+                'result' => $response,
+                'body' => json_encode($body),
+                'message' => $response['issue'][0]['details']['text'],
+            ];
+        } else {
+            return [
+                'key' => 'no',
+                'result' => $response,
+                'body' => json_encode($body),
+                'message' => 'Server error',
+            ];
+        }
+    }
+
+
+    public function sendPribadi($idEncounter, $id_users)
+    {
+        if (empty($idEncounter)) throw new \Exception("Please insert encounter before sending");
+
+        $body = [
+            "resourceType" => "Bundle",
+            "type" => "transaction",
+            "entry" => $this->bundleEntry
+        ];
+
+
+
+
+        if (empty($this->bundleEntry)) {
+            return [
+                'ket' => 'yes',
+                'result' => "This data already saved",
+                'body' => json_encode($body),
+                'id_encounter' => $idEncounter,
+            ];
+        }
+
+        $oAuthClientPribadi = new OAuth2ClientPribadi;
+        $access_token = $oAuthClientPribadi->token($id_users);
+
+        // Log::info('laravel', ['access_token' => $access_token]);
+
+
+        if (!isset($access_token)) {
+            throw new \Exception("Access token not provided");
+        }
+
+        $client = new Client();
+        $headers = [
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer ' . $access_token,
+        ];
+
+        $url = $oAuthClientPribadi->base_url;
         $request = new Request('POST', $url, $headers, collect($body));
 
         try {
