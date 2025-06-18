@@ -1020,6 +1020,7 @@ class Bundle
 
             return [
                 'ket' => 'yes',
+                'statusCode' => $statusCode,
                 'result' => $response,
                 'body' => json_encode($body),
                 'id_ruangan_satusehat' => $idRuanganSatuSehat ?? null,
@@ -1027,6 +1028,7 @@ class Bundle
         } else if ($statusCode == 400) {
             return [
                 'key' => 'no',
+                'statusCode' => $statusCode,
                 'result' => $response,
                 'body' => json_encode($body),
                 'message' => $response['issue'][0]['details']['text'] ?? 'Bad request',
@@ -1034,6 +1036,7 @@ class Bundle
         } else {
             return [
                 'key' => 'no',
+                'statusCode' => $statusCode,
                 'result' => $response,
                 'body' => json_encode($body),
                 'message' => 'Server error',
