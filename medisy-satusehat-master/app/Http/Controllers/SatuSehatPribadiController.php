@@ -171,7 +171,7 @@ class SatuSehatPribadiController extends Controller
 
 
                 $result = $bundle->sendPribadi($satusehat_phases->id_encounter, $dokter->id);
-                dd($result);
+                // dd($result);
 
 
                 if (!empty($result['id_encounter'])) {
@@ -302,9 +302,34 @@ class SatuSehatPribadiController extends Controller
 
             // Return a detailed error response
             return response()->json([
-                'message' => 'Terjadi kesalahan saat generate data',
+                'message' => 'Terjadi kesalahan  saat generate data',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
+
+    public function getLocation() {}
+
+    public function createLocation(Request $request)
+    {
+        $body_satusehat = $request->input('body_satusehat');
+        $id_dokter = $request->input('id_dokter');
+        $data_ruangan = $request->input('data_ruangan');
+
+        if ($body_satusehat && $id_dokter && $data_ruangan) {
+
+            $bundle = new Bundle;
+            $result =  $bundle->locationCreate($body_satusehat, $id_dokter, $data_ruangan);
+
+            return response()->json($result);
+        } else {
+            return response()->json(['message' => 'Invalid input format. Expected a string for body_satusehat.'], 400);
+        }
+
+        // Sekarang $data pasti array
+    }
+
+    public function updateLocation() {}
+
+    public function deleteLocation() {}
 }

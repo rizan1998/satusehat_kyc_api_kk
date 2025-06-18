@@ -9,6 +9,7 @@ use GuzzleHttp\Client;
 use App\Models\Perusahaan;
 use GuzzleHttp\Psr7\Request;
 use App\Models\CatatanPasien;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use GuzzleHttp\Exception\ClientException;
 
@@ -954,5 +955,89 @@ class Bundle
         $dateTime = new DateTime($datetime, $timezone);
         $formattedDateTime = $dateTime->format('Y-m-d\TH:i:sP');
         return $formattedDateTime;
+    }
+
+
+
+    public function locationCreate($body_satusehat, $id_users, $data_ruangan)
+    {
+
+        $body = $body_satusehat;
+
+        $oAuthClientPribadi = new OAuth2ClientPribadi;
+        $access_token = $oAuthClientPribadi->token($id_users);
+
+        // Log::info('laravel', ['access_token' => $access_token]);
+
+
+        if (!isset($access_token)) {
+            throw new \Exception("Access token not provided");
+        }
+
+        $client = new Client();
+        $headers = [
+            'Content-Type' => 'application/json',
+            'Authorization' => 'Bearer ' . $access_token,
+        ];
+
+
+
+        $url = $oAuthClientPribadi->base_url . '/Location';
+        $request = new Request('POST', $url, $headers, collect($body));
+
+
+
+        try {
+            $res = $client->sendAsync($request)->wait();
+            $statusCode = $res->getStatusCode();
+            $response = json_decode($res->getBody()->getContents(), true);
+        } catch (ClientException $e) {
+            $statusCode = $e->getResponse()->getStatusCode();
+            $response = json_decode($e->getResponse()->getBody()->getContents(), true);
+        }
+
+
+        Log::info('laravel', ['statusCode' => $statusCode, 'response' => $response]);
+
+        if ($statusCode == 201 || $statusCode == 200) {
+            if (isset($response['id'])) {
+                $idRuanganSatuSehat = $response['id'];
+
+                // Simpan data ke kk_ruangan_pemeriksaan
+                $inpRuangan = [
+                    'nama' => $data_ruangan['nama'] ?? null,
+                    'kode_ruangan' => $data_ruangan['kode_ruangan'] ?? null, // Pastikan variabel ini sudah didefinisikan sebelumnya
+                    'id_ruangan_satusehat' => $response['id'] ?? null,
+                    'location_type' => $data_ruangan['location_type'] ?? null, // Pastikan variabel ini sudah didefinisikan sebelumnya
+                    'ruangan' => $data_ruangan['ruangan'] ?? null, // Pastikan variabel ini sudah didefinisikan sebelumnya
+                    'id_user' => $data_ruangan['id_user'] ?? null,
+                    'id_dokter' => $data_ruangan['id_dokter'] ?? null,
+                    'created_at' => date("Y-m-d H:i:s")
+                ];
+
+                DB::table('kk_ruangan_pemeriksaan')->insert($inpRuangan);
+            }
+
+            return [
+                'ket' => 'yes',
+                'result' => $response,
+                'body' => json_encode($body),
+                'id_ruangan_satusehat' => $idRuanganSatuSehat ?? null,
+            ];
+        } else if ($statusCode == 400) {
+            return [
+                'key' => 'no',
+                'result' => $response,
+                'body' => json_encode($body),
+                'message' => $response['issue'][0]['details']['text'] ?? 'Bad request',
+            ];
+        } else {
+            return [
+                'key' => 'no',
+                'result' => $response,
+                'body' => json_encode($body),
+                'message' => 'Server error',
+            ];
+        }
     }
 }

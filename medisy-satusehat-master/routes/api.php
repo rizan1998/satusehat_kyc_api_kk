@@ -25,7 +25,17 @@ use App\Http\Controllers\SatuSehatPribadiController;
 
 Route::post('/generateSatuSehatUrl', [SatuSehatController::class, 'getKycLink'])->name('satusehatapi.generateUrl');
 Route::get('/satusehat/bundle/visit/{visitId}', [SatuSehatController::class, 'bundle'])->name('satusehatapi.bundle');
-Route::get('/satusehat/bundle/visitPribadi/{visitId}', [SatuSehatPribadiController::class, 'bundle'])->name('satusehatapiPribadi.bundle');
+
+
+Route::get('/satusehatPribadi/bundle/visitPribadi/{visitId}', [SatuSehatPribadiController::class, 'bundle'])->name('satusehatapi.bundle');
+
+
+Route::get('/satusehatPribadi/location', [SatuSehatPribadiController::class, 'getLocation'])->name('satusehatapi.location');
+Route::post('/satusehatPribadi/location', [SatuSehatPribadiController::class, 'createLocation'])->name('satusehatapi.location.create');
+Route::put('/satusehatPribadi/location', [SatuSehatPribadiController::class, 'updateLocation'])->name('satusehatapi.location.update');
+Route::delete('/satusehatPribadi/location', [SatuSehatPribadiController::class, 'deleteLocation'])->name('satusehatapi.location.delete');
+
+
 // Route::get('/satusehat/bundle/visitPribadi/{visitId}', function ($visitId) {
 //     return response()->json([
 //         'status' => 'success',
