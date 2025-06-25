@@ -111,25 +111,25 @@ class SatuSehatPribadiController extends Controller
                 // }
                 // // END LAB
 
-                $pemeriksaanTindakan = PemeriksaanTindakan::with(['icd9'])->where('id_kunjungan', $kunjungan->id)->where('id_icd9', '!=', 0)->get();
-                $pemeriksaanTindakanIds = [];
-                if (empty($satusehat_phases->procedure_medis)) {
-                    foreach ($pemeriksaanTindakan as $procedure) {
-                        if (empty($procedure->icd9)) continue;
-                        $pemeriksaanTindakanIds[] = $procedure->id;
-                        $bundle->setProcedure($prefixEncounter . $satusehat_phases->id_encounter, $dokter, $procedure);
-                    }
+                // $pemeriksaanTindakan = PemeriksaanTindakan::with(['icd9'])->where('id_kunjungan', $kunjungan->id)->where('id_icd9', '!=', 0)->get();
+                // $pemeriksaanTindakanIds = [];
+                // if (empty($satusehat_phases->procedure_medis)) {
+                //     foreach ($pemeriksaanTindakan as $procedure) {
+                //         if (empty($procedure->icd9)) continue;
+                //         $pemeriksaanTindakanIds[] = $procedure->id;
+                //         $bundle->setProcedure($prefixEncounter . $satusehat_phases->id_encounter, $dokter, $procedure);
+                //     }
 
-                    $satusehat_phases->procedure_medis = true;
-                }
+                //     $satusehat_phases->procedure_medis = true;
+                // }
 
-                if (empty($satusehat_phases->condition_diagnosis)) {
-                    foreach ($diagnosa as $penyakit) {
-                        $bundle->setCondition($prefixEncounter . $satusehat_phases->id_encounter, $penyakit, $kunjungan->created);
-                    }
+                // if (empty($satusehat_phases->condition_diagnosis)) {
+                //     foreach ($diagnosa as $penyakit) {
+                //         $bundle->setCondition($prefixEncounter . $satusehat_phases->id_encounter, $penyakit, $kunjungan->created);
+                //     }
 
-                    $satusehat_phases->condition_diagnosis = true;
-                }
+                //     $satusehat_phases->condition_diagnosis = true;
+                // }
 
                 // $resepObat = ResepObat::with('obat', 'obat.satuan', 'medication_form', 'route', 'satuan_dosis')->where('id_kunjungan', $kunjungan->id)->get();
 
@@ -182,14 +182,14 @@ class SatuSehatPribadiController extends Controller
                     $satusehat_phases->save();
 
                     // CatatanPasien::whereIn('id', $patientNoteIds)->update(['satusehat_status' => true]);
-                    PemeriksaanTindakan::whereIn('id', $pemeriksaanTindakanIds)->update(['satusehat_status' => true]);
+                    // PemeriksaanTindakan::whereIn('id', $pemeriksaanTindakanIds)->update(['satusehat_status' => true]);
                     // ResepObat::whereIn('id', $resepObatIds)->update(['satusehat_status' => true]);
                     // Racik::whereIn('id', $racikObatIds)->update(['satusehat_status' => true]);
 
                     // return response()->json($result);
                     return response()->json(['ket' => 'no', 'message' => 'data terkirim', 'status' => true]);
                 } else {
-                    return response()->json(['ket' => 'no', 'message' => 'data tidak terkirim', 'status' => false]);
+                    return response()->json(['ket' => 'no', 'message' => 'data tidak terkirim', 'status' => false, 'result' => $result]);
                 }
             } catch (\Exception $e) {
                 throw $e;
