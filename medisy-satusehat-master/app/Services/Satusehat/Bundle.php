@@ -807,9 +807,6 @@ class Bundle
             "entry" => $this->bundleEntry
         ];
 
-        // echo json_encode($body);
-        // die;
-
         if (empty($this->bundleEntry)) {
             return [
                 'ket' => 'yes',
@@ -882,10 +879,12 @@ class Bundle
             "entry" => $this->bundleEntry
         ];
 
-
-
+        // Log::info('laravel', ['body' => $body]);
+        // echo json_encode($body);
+        // die;
 
         if (empty($this->bundleEntry)) {
+            Log::info('encounter', ['idEncounter' => $idEncounter]);
             return [
                 'ket' => 'yes',
                 'result' => "This data already saved",
@@ -896,6 +895,8 @@ class Bundle
 
         $oAuthClientPribadi = new OAuth2ClientPribadi;
         $access_token = $oAuthClientPribadi->token($id_users);
+
+        Log::info('access_token', ['access_token' => $access_token]);
 
         // Log::info('laravel', ['access_token' => $access_token]);
 

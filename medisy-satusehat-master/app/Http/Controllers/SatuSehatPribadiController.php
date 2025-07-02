@@ -123,13 +123,13 @@ class SatuSehatPribadiController extends Controller
                 //     $satusehat_phases->procedure_medis = true;
                 // }
 
-                // if (empty($satusehat_phases->condition_diagnosis)) {
-                //     foreach ($diagnosa as $penyakit) {
-                //         $bundle->setCondition($prefixEncounter . $satusehat_phases->id_encounter, $penyakit, $kunjungan->created);
-                //     }
+                if (empty($satusehat_phases->condition_diagnosis)) {
+                    foreach ($diagnosa as $penyakit) {
+                        $bundle->setCondition($prefixEncounter . $satusehat_phases->id_encounter, $penyakit, $kunjungan->created);
+                    }
 
-                //     $satusehat_phases->condition_diagnosis = true;
-                // }
+                    $satusehat_phases->condition_diagnosis = true;
+                }
 
                 // $resepObat = ResepObat::with('obat', 'obat.satuan', 'medication_form', 'route', 'satuan_dosis')->where('id_kunjungan', $kunjungan->id)->get();
 
@@ -171,7 +171,7 @@ class SatuSehatPribadiController extends Controller
 
 
                 $result = $bundle->sendPribadi($satusehat_phases->id_encounter, $dokter->id);
-                // dd($result);
+                // Log::info('result', ['return_result' => $result]);
 
 
                 if (!empty($result['id_encounter'])) {

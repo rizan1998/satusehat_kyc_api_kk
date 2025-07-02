@@ -68,8 +68,18 @@ class OAuth2ClientPribadi
             $contents = json_decode($res->getBody()->getContents());
 
             if (isset($contents->access_token)) {
-                $User->update([
+
+                Log::info('token_active', [
+                    'user_id' => $User->id,
                     'token_active' => $contents->access_token,
+                ]);
+
+                // $User->update([
+                //     'token_active' => $contents->access_token,
+                // ]);
+
+                User::where('id', $User->id)->update([
+                    'token_active' => $contents->access_token
                 ]);
 
                 return $contents->access_token;
