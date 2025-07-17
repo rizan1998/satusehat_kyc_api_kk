@@ -28,7 +28,7 @@ services:
     container_name: satusehat_kyc_api_kk_queue
     image: rizan1998/satusehat_kyc_api_kk
     restart: unless-stopped
-    command: php artisan queue:work
+    command: php artisan queue:work --queue=sync --tries=3 --timeout=60
     volumes:
       - ./medisy-satusehat-master:/var/www
       - ./medisy-satusehat-master/public:/var/www/html

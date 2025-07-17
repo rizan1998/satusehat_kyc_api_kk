@@ -69,10 +69,7 @@ class OAuth2ClientPribadi
 
             if (isset($contents->access_token)) {
 
-                Log::info('token_active', [
-                    'user_id' => $User->id,
-                    'token_active' => $contents->access_token,
-                ]);
+
 
                 // $User->update([
                 //     'token_active' => $contents->access_token,

@@ -4,9 +4,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SatuSehatTesting;
+use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\SatuSehatController;
 use App\Http\Controllers\SatuSehatPribadiController;
-
+use App\Http\Controllers\ScheduleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -50,4 +51,14 @@ Route::post('/satusehat/bundleBatch/send', [SatuSehatController::class, 'bundleB
 // Route::get('/testing', [SatuSehatController::class, 'testGetRacik']);
 Route::get('/perusahaan', function () {
     // dd(DB::table('kk_perusahaan')->first());
+});
+
+
+Route::post('/sync', [SyncController::class, 'handle'])->name('sync');
+
+Route::prefix('schedule')->group(function () {
+    Route::get('/sync', [ScheduleController::class, 'GetScheduleSync'])->name('schedule.sync');
+    Route::post('/sync', [ScheduleController::class, 'CreateScheduleSync'])->name('schedule.sync.create');
+    Route::put('/sync', [ScheduleController::class, 'UpdateScheduleSync'])->name('schedule.sync.update');
+    Route::delete('/sync', [ScheduleController::class, 'DeleteScheduleSync'])->name('schedule.sync.delete');
 });
