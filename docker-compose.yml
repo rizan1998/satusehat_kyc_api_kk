@@ -28,14 +28,30 @@ services:
     container_name: satusehat_kyc_api_kk_queue
     image: rizan1998/satusehat_kyc_api_kk
     restart: unless-stopped
-    command: php artisan queue:work --queue=sync --tries=3 --timeout=60
+    command: >
+      bash -c "
+      php artisan queue:work --queue=sync --tries=3 --timeout=60 &
+      php artisan schedule:work &
+      wait"  # Menunggu kedua proses berjalan
     volumes:
       - ./medisy-satusehat-master:/var/www
-      - ./medisy-satusehat-master/public:/var/www/html
       - ./.env:/var/www/.env
-      - ./medisy-satusehat-master/storage:/var/www/storage
     networks:
       - himed_network
+
+  # satusehat_kyc_api_kk_queue:
+  #   container_name: satusehat_kyc_api_kk_queue
+  #   image: rizan1998/satusehat_kyc_api_kk
+  #   restart: unless-stopped
+  #   command: php artisan queue:work --queue=sync --tries=3 --timeout=60
+
+  #   volumes:
+  #     - ./medisy-satusehat-master:/var/www
+  #     - ./medisy-satusehat-master/public:/var/www/html
+  #     - ./.env:/var/www/.env
+  #     - ./medisy-satusehat-master/storage:/var/www/storage
+  #   networks:
+  #     - himed_network
 
   # satusehat_api_mysql:
   #   container_name: satusehat_api_mysql
