@@ -9,6 +9,7 @@ use GuzzleHttp\Client;
 use App\Models\Perusahaan;
 use GuzzleHttp\Psr7\Request;
 use App\Models\CatatanPasien;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use GuzzleHttp\Exception\ClientException;
@@ -37,7 +38,8 @@ class Bundle
         }
 
         $id = Uuid::uuid4()->toString();
-        $this->bundleEntry[] = [
+        $this->bundleEntry['title_payload'][] =  'Create Encounter';
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $id,
             "resource" => [
                 'resourceType' => 'Encounter',
@@ -148,7 +150,8 @@ class Bundle
             ];
         }
 
-        $this->bundleEntry[] = [
+        $this->bundleEntry['title_payload'][] = $patient_note->jenis;
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $uuid,
             "resource" => [
                 'resourceType' => 'AllergyIntolerance',
@@ -258,8 +261,8 @@ class Bundle
                 "code"   => "Cel"
             ];
         }
-
-        $this->bundleEntry[] = [
+        $this->bundleEntry['title_payload'][] = 'observation';
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $uuid,
             "resource" => [
                 'resourceType' => 'Observation',
@@ -297,12 +300,422 @@ class Bundle
         ];
     }
 
+    public function setServiceRequest($idEncounter, $id, $dataLab, $dokter)
+    {
+        $pemeriksaanLab = $dataLab->PemeriksaanLab;
+        $petugas = $dataLab->Petugas;
+        if (empty($petugas) || empty($petugas->id_dokter_satusehat)) {
+            $petugas = $dokter;
+        }
+
+        if ($idEncounter == null) throw new \Exception("Please insert encounter before set observation");
+        $uuid = Uuid::uuid4()->toString();
+
+        $this->bundleEntry['title_payload'][] = 'lab';
+        $this->bundleEntry['resource'][] = [
+            'fullUrl' => "urn:uuid:" . $uuid,
+            'resource' =>  [
+                "resourceType" => "ServiceRequest",
+                "identifier" => [
+                    [
+                        "system" => "http://sys-ids.kemkes.go.id/servicerequest/" . $this->organizationID,
+                        "value" => (string) $id
+                    ]
+                ],
+                "status" => "active",
+                "intent" => "original-order",
+                "priority" => "routine",
+                "category" => [
+                    [
+                        "coding" => [
+                            [
+                                "system" => "http://snomed.info/sct",
+                                "code" => "108252007",
+                                "display" => "Laboratory procedure"
+                            ]
+                        ]
+                    ]
+                ],
+                "code" => [
+                    "coding" => [
+                        [
+                            "system" => "http://loinc.org",
+                            "code" => $pemeriksaanLab->Code,
+                            "display" => $pemeriksaanLab->code_display
+                        ]
+                    ],
+                    "text" => $pemeriksaanLab->nama
+                ],
+                "subject" => [
+                    "reference" => $this->patientReference
+                ],
+                "encounter" => [
+                    "reference" => $idEncounter,
+                    "display" => "Permintaan Pemeriksaan Lab " . $this->patientDisplay . " pada tanggal " . $dataLab->created
+                ],
+                "occurrenceDateTime" => $this->formattedDate($dataLab->created),
+                "authoredOn" => $this->formattedDate($dataLab->created),
+                "requester" => [
+                    "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+                    "display" => $dokter->nama_lengkap
+                ],
+                "performer" => [
+                    [
+                        "reference" => "Practitioner/" . $petugas->id_dokter_satusehat,
+                        "display" => $petugas->nama_lengkap
+                    ]
+                ]
+            ],
+            "request" => ["method" => "POST", "url" => "ServiceRequest"]
+        ];
+
+        return $uuid;
+    }
+
+    public function setSpecimen($idEncounter, $serviceRequestLabId, $id, $dataLab)
+    {
+        if ($idEncounter == null) throw new \Exception("Please insert encounter before set observation");
+        $uuid = Uuid::uuid4()->toString();
+
+        $this->bundleEntry['title_payload'][] = 'specimen';
+        $this->bundleEntry['resource'][] = [
+            'fullUrl' => "urn:uuid:" . $uuid,
+            'resource' =>  [
+                "resourceType" => "Specimen",
+                "identifier" => [
+                    [
+                        "system" => "http://sys-ids.kemkes.go.id/specimen/" . $this->organizationID,
+                        "value" => (string) $id
+                    ]
+                ],
+                "status" => "available",
+                "type" => [
+                    "coding" => [
+                        [
+                            "system" => "http://snomed.info/sct",
+                            "code" => $dataLab->SampelLab->code,
+                            "display" => $dataLab->SampelLab->Snomed->term
+                        ]
+                    ]
+                ],
+                "collection" => [
+                    "collectedDateTime" => $this->formattedDate((new Carbon($dataLab->jam_ambil_sample))->format("Y-m-d H:i:s")),
+                ],
+                "subject" => [
+                    "reference" => $this->patientReference,
+                    "display" => $this->patientDisplay
+                ],
+                "request" => [
+                    [
+                        "reference" => "ServiceRequest/" . $serviceRequestLabId,
+                    ],
+                ],
+            ],
+            'request' => ['method' => 'POST', 'url' => 'Specimen']
+        ];
+        return $uuid;
+    }
+
+    public function setObservationLab($idEncounter, $serviceRequestLabId, $dataLab, $dokter, $specimenLabId)
+    {
+        if ($idEncounter == null) throw new \Exception("Please insert encounter before set observation");
+        $uuid = Uuid::uuid4()->toString();
+        $id_kategori =  $dataLab->PemeriksaanLab->kategori_loinc_id;
+
+        $coding = [];
+        if ($id_kategori ==  1) { //jika mikrobiologi
+            $loinc = DB::table('loinc_lab_mikrobiologi_klinik')->where('Code', $dataLab->PemeriksaanLab->Code)->first();
+            $coding = [
+                [
+                    "system" => $loinc->Code_System,
+                    "code" => $loinc->Code,
+                    "display" => $loinc->Display
+                ]
+            ];
+        } else if ($id_kategori == 2) { //jika kimia klinik
+            $loinc = DB::table('loinc_lab_patologi_anatomi')->where('Kode', $dataLab->PemeriksaanLab->Code)->first();
+            $coding = [
+                [
+                    "system" => $loinc->Code_System,
+                    "code" => $loinc->Kode,
+                    "display" => $loinc->Nama_Pemeriksaan
+                ]
+            ];
+        } else if ($id_kategori == 3) { //jika kimia klinik
+            $loinc = DB::table('loinc_lab_patologi_klinik')->where('code', $dataLab->PemeriksaanLab->Code)->first();
+            $coding = [
+                [
+                    "system" => $loinc->code_system,
+                    "code" => $loinc->code,
+                    "display" => $loinc->display
+                ]
+            ];
+        } else {
+            return; // Jika kategori tidak dikenali, tidak melakukan apa-apa
+        }
+
+        $resource = [
+            "resourceType" => "Observation",
+            "basedOn" => [
+                [
+                    "reference" => "ServiceRequest/" . $serviceRequestLabId
+                ]
+            ],
+            "status" => "final",
+            "category" => [
+                [
+                    "coding" => [
+                        [
+                            "system" => "http://terminology.hl7.org/CodeSystem/observation-category",
+                            "code" => "laboratory",
+                            "display" => "Laboratory"
+                        ]
+                    ]
+                ]
+            ],
+            "code" => [
+                "coding" => $coding
+            ],
+            "performer" => [
+                [
+                    "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+                ]
+            ],
+            "subject" => [
+                "reference" => $this->patientReference,
+                "display" => $this->patientDisplay
+            ],
+            "encounter" => [
+                "reference" => $idEncounter
+            ],
+            "effectiveDateTime" => $this->formattedDate($dataLab->created_at),
+            "issued" => $this->formattedDate($dataLab->created_at),
+            "specimen" => [
+                "reference" => "Specimen/" . $specimenLabId
+            ]
+        ];
+
+
+        if ($dataLab->PemeriksaanLab->jenis_nilai != 'PAKET') {
+            if ($dataLab->PemeriksaanLab->jenis_nilai == 'NUMBER') {
+                $resource['valueQuantity'] = [
+                    "value" => (float)$dataLab->hasil,
+                    "unit" => $dataLab->PemeriksaanLab->SatusehatSatuan->unit,
+                    "system" => $dataLab->PemeriksaanLab->SatusehatSatuan->codesystem,
+                    "code" => $dataLab->PemeriksaanLab->SatusehatSatuan->code,
+                ];
+            } else if ($dataLab->PemeriksaanLab->jenis_nilai == 'STATEMENT') {
+                if ($dataLab->hasil == $dataLab->PemeriksaanLab->nilai_1) {
+                    $resource['valueCodeableConcept'] =   [
+                        "coding" => [
+                            [
+                                "system" => $dataLab->PemeriksaanLab->value_codeable_concept1_data->system,
+                                "code" => $dataLab->PemeriksaanLab->value_codeable_concept1_data->code,
+                                "display" => $dataLab->PemeriksaanLab->value_codeable_concept1_data->display
+                            ]
+                        ]
+                    ];
+                } else {
+                    $resource['valueCodeableConcept'] =   [
+                        "coding" => [
+                            [
+                                "system" => $dataLab->PemeriksaanLab->value_codeable_concept2_data->system,
+                                "code" => $dataLab->PemeriksaanLab->value_codeable_concept2_data->code,
+                                "display" => $dataLab->PemeriksaanLab->value_codeable_concept2_data->display
+                            ]
+                        ]
+                    ];
+                }
+            } else if ($dataLab->PemeriksaanLab->jenis_nilai == 'MULTIPLE') {
+            } else if ($dataLab->PemeriksaanLab->jenis_nilai == 'LIST MULTIPLE') {
+            }
+        }
+
+
+        $this->bundleEntry['title_payload'][] = 'observation Lab';
+        $this->bundleEntry['resource'][] = [
+            'fullUrl' => "urn:uuid:" . $uuid,
+            'resource' =>  $resource,
+            'request' => ['method' => 'POST', 'url' => 'Observation']
+        ];
+        return $uuid;
+
+
+        // $this->bundleEntry[] = [
+        //     'fullUrl' => "urn:uuid:" . $uuid,
+        //     'resource' =>   [
+        //         "resourceType" => "Observation",
+        //         "status" => "final",
+        //         "basedOn" => [
+        //             [
+        //                 "reference" => "ServiceRequest/" . $serviceRequestLabId
+        //             ]
+        //         ],
+        //         "category" => [
+        //             [
+        //                 "coding" => [
+        //                     [
+        //                         "system" => "http://terminology.hl7.org/CodeSystem/observation-category",
+        //                         "code" => "laboratory",
+        //                         "display" => "Laboratory"
+        //                     ]
+        //                 ]
+        //             ]
+        //         ],
+        //         "code" => [
+        //             "coding" => [
+        //                 [
+        //                     "system" => $dataLab->PemeriksaanLab->Code_System,
+        //                     "code" => "3084-1",
+        //                     "display" => "Urate [Mass/volume] in Serum or Plasma"
+        //                 ]
+        //             ]
+        //         ],
+        //         "performer" => [
+        //             [
+        //                 "reference" => "Practitioner/N10000001"
+        //             ]
+        //         ],
+        //         "subject" => [
+        //             "reference" => "Patient/{{Patient_Id}}",
+        //             "display" => "{{Patient_Name}}"
+        //         ],
+        //         "specimen" => [
+        //             "reference" => "Specimen/{{Specimen_Urat}}"
+        //         ],
+        //         "encounter" => [
+        //             "reference" => "Encounter/{{Encounter_id}}"
+        //         ],
+        //         "effectiveDateTime" => "2024-04-24T03:15:35+00:00",
+        //         "issued" => "2024-04-24T03:15:35+00:00",
+        //     ],
+        //     'request' => ['method' => 'POST', 'url' => 'Specimen']
+        // ];
+    }
+
+    public function setDiagnosicReport($idEncounter, $observationLabId, $specimenLabId, $serviceRequestLabId, $dataLab, $dokter)
+    {
+        if ($idEncounter == null) throw new \Exception("Please insert encounter before set observation");
+        $uuid = Uuid::uuid4()->toString();
+
+        $id_kategori =  $dataLab->PemeriksaanLab->kategori_loinc_id;
+
+        $coding = [];
+        if ($id_kategori ==  1) { //jika mikrobiologi
+            $loinc = DB::table('loinc_lab_mikrobiologi_klinik')->where('Code', $dataLab->PemeriksaanLab->Code)->first();
+            $coding = [
+                [
+                    "system" => $loinc->Code_System,
+                    "code" => $loinc->Code,
+                    "display" => $loinc->Display
+                ]
+            ];
+        } else if ($id_kategori == 2) { //jika kimia klinik
+            $loinc = DB::table('loinc_lab_patologi_anatomi')->where('Kode', $dataLab->PemeriksaanLab->Code)->first();
+            $coding = [
+                [
+                    "system" => $loinc->Code_System,
+                    "code" => $loinc->Kode,
+                    "display" => $loinc->Nama_Pemeriksaan
+                ]
+            ];
+        } else if ($id_kategori == 3) { //jika kimia klinik
+            $loinc = DB::table('loinc_lab_patologi_klinik')->where('code', $dataLab->PemeriksaanLab->Code)->first();
+            $coding = [
+                [
+                    "system" => $loinc->code_system,
+                    "code" => $loinc->code,
+                    "display" => $loinc->display
+                ]
+            ];
+        } else {
+            return; // Jika kategori tidak dikenali, tidak melakukan apa-apa
+        }
+
+        $pemeriksaanLab = $dataLab->PemeriksaanLab;
+        $this->bundleEntry['title_payload'][] = 'diagnostic report';
+        $this->bundleEntry['resource'][] = [
+            'fullUrl' => "urn:uuid:" . $uuid,
+            'resource' =>  [
+                "resourceType" => "DiagnosticReport",
+                "identifier" => [
+                    "system" => "http://sys-ids.kemkes.go.id/diagnostic/" . $this->organizationID . "/lab",
+                    "use" => "official",
+                    "value" => (string) $dataLab->id
+                ],
+                "status" => "final",
+                "category" => [
+                    [
+                        "coding" => [
+                            [
+                                "system" => $pemeriksaanLab->DiagnosticReportCategory->system,
+                                "code" => $pemeriksaanLab->DiagnosticReportCategory->code,
+                                "display" => $pemeriksaanLab->DiagnosticReportCategory->display
+                            ]
+                        ]
+                    ]
+                ],
+                "code" => [
+                    "coding" => $coding
+                ],
+                "subject" => [
+                    "reference" => $this->patientReference,
+                    "display" => $this->patientDisplay
+                ],
+                "encounter" => [
+                    "reference" => $idEncounter,
+                    "display" => "Permintaan Pemeriksaan Lab " . $this->patientDisplay . " pada tanggal " . $dataLab->created_at
+                ],
+                "issued" => $this->formattedDate($dataLab->jam_selesai),
+                "performer" => [
+                    [
+                        "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+                        "display" => $dokter->nama_lengkap
+                    ],
+                    [
+                        'reference' => 'Organization/' . $this->organizationID
+                    ]
+                ],
+                "result" => [
+                    [
+                        "reference" => "Observation/" . $observationLabId
+                    ]
+                ],
+                "specimen" => [
+                    [
+                        "reference" => "Specimen/" . $specimenLabId
+                    ]
+                ],
+                "basedOn" => [
+                    [
+                        "reference" => "ServiceRequest/" . $serviceRequestLabId
+                    ]
+                ],
+                "conclusionCode" => [
+                    [
+                        "coding" => [
+                            [
+                                "system" => $dataLab->DiagnosticReportConclusion->system,
+                                "code" => $dataLab->DiagnosticReportConclusion->code,
+                                "display" => $dataLab->DiagnosticReportConclusion->display
+                            ]
+                        ]
+                    ]
+                ],
+            ],
+            'request' => ['method' => 'POST', 'url' => 'DiagnosticReport']
+        ];
+
+        return $uuid;
+    }
+
     public function setProcedure($idEncounter, $dokter, $tindakan)
     {
         $uuid = Uuid::uuid4()->toString();
         if (empty($idEncounter)) throw new \Exception("Please insert encounter before set condition");
 
-        $this->bundleEntry[] = [
+        $this->bundleEntry['title_payload'][] = 'tindakan';
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $uuid,
             "resource" => [
                 "resourceType" => "Procedure",
@@ -337,12 +750,91 @@ class Bundle
         ];
     }
 
+    // public function setCondition($idEncounter, $penyakit, $tanggal)
+    // {
+    //     $uuid = Uuid::uuid4()->toString();
+    //     if (empty($idEncounter)) throw new \Exception("Please insert encounter before set condition");
+
+    //     $this->bundleEntry['title_payload'][] = 'tindakan';
+    //     $this->bundleEntry['resource'][] = [
+    //         "fullUrl" => "urn:uuid:" . $uuid,
+    //         "resource" => [
+    //             'resourceType' => 'Condition',
+    //             'clinicalStatus' => [
+    //                 'coding' => [
+    //                     [
+    //                         "system"  => "http://terminology.hl7.org/CodeSystem/condition-clinical",
+    //                         "code"    => "active",
+    //                         "display" => "Active"
+    //                     ]
+    //                 ]
+    //             ],
+    //             'category' => [
+    //                 [
+    //                     'coding' => [
+    //                         [
+    //                             "system"  => "http://terminology.hl7.org/CodeSystem/condition-category",
+    //                             "code"    => "problem-list-item",
+    //                             "display" => "Problem List Item"
+    //                         ]
+    //                     ]
+    //                 ]
+    //             ],
+    //             'code' =>  [
+    //                 'coding' => [
+    //                     [
+    //                         "system"  => "http://hl7.org/fhir/sid/icd-10",
+    //                         "code"    => $penyakit->kode,
+    //                         "display" => $penyakit->nama
+    //                     ]
+    //                 ]
+    //             ],
+    //             'subject' => [
+    //                 "reference" => $this->patientReference,
+    //                 "display"   => $this->patientDisplay
+    //             ],
+    //             'encounter' => [
+    //                 "reference" => $idEncounter,
+    //                 "display"   => "Kunjungan " . $this->patientDisplay . " tanggal " . $tanggal
+    //             ]
+    //         ],
+    //         "request" => ["method" => "POST", "url" => "Condition"]
+    //     ];
+
+    //     foreach ($this->bundleEntry as $key => $value) {
+    //         if ($value['resource']['resourceType'] == 'Encounter') {
+    //             if (!isset($value['resource']['diagnosis'])) {
+    //                 $this->bundleEntry[$key]['resource']['diagnosis'] = [];
+    //             }
+
+    //             $this->bundleEntry[$key]['resource']['diagnosis'][] = [
+    //                 "condition" => [
+    //                     "reference" => "urn:uuid:" . $uuid,
+    //                     "display" => $penyakit->nama
+    //                 ],
+    //                 "use" => [
+    //                     "coding" => [
+    //                         [
+    //                             "system" => "http://terminology.hl7.org/CodeSystem/diagnosis-role",
+    //                             "code" => "DD",
+    //                             "display" => "Discharge diagnosis"
+    //                         ]
+    //                     ]
+    //                 ],
+    //                 "rank" => 1
+    //             ];
+    //             break;
+    //         }
+    //     }
+    // }
+
     public function setCondition($idEncounter, $penyakit, $tanggal)
     {
         $uuid = Uuid::uuid4()->toString();
         if (empty($idEncounter)) throw new \Exception("Please insert encounter before set condition");
 
-        $this->bundleEntry[] = [
+        $this->bundleEntry['title_payload'][] = 'set condition' . $penyakit->nama;
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $uuid,
             "resource" => [
                 'resourceType' => 'Condition',
@@ -387,13 +879,14 @@ class Bundle
             "request" => ["method" => "POST", "url" => "Condition"]
         ];
 
-        foreach ($this->bundleEntry as $key => $value) {
+
+        foreach ($this->bundleEntry['resource'] as $key => $value) {
             if ($value['resource']['resourceType'] == 'Encounter') {
                 if (!isset($value['resource']['diagnosis'])) {
-                    $this->bundleEntry[$key]['resource']['diagnosis'] = [];
+                    $this->bundleEntry['resource'][$key]['resource']['diagnosis'] = [];
                 }
 
-                $this->bundleEntry[$key]['resource']['diagnosis'][] = [
+                $this->bundleEntry['resource'][$key]['resource']['diagnosis'][] = [
                     "condition" => [
                         "reference" => "urn:uuid:" . $uuid,
                         "display" => $penyakit->nama
@@ -804,8 +1297,12 @@ class Bundle
         $body = [
             "resourceType" => "Bundle",
             "type" => "transaction",
-            "entry" => $this->bundleEntry
+            "entry" => $this->bundleEntry['resource']
         ];
+
+
+        // echo json_encode($body);
+        // die;
 
         if (empty($this->bundleEntry)) {
             return [
@@ -828,6 +1325,8 @@ class Bundle
             'Content-Type' => 'application/json',
             'Authorization' => 'Bearer ' . $access_token,
         ];
+
+        Log::info("body", ['body' => $body]);
 
         $url = $oAuthClient->base_url;
         $request = new Request('POST', $url, $headers, collect($body));

@@ -21,6 +21,15 @@ services:
       - ./medisy-satusehat-master/storage:/var/www/storage
     environment:
       - app_name=Satu sehat API
+    # TAMBAHKAN KONFIGURASI DNS INI:
+    dns:
+      - 8.8.8.8       # Google DNS Primary
+      - 8.8.4.4       # Google DNS Secondary  
+      - 1.1.1.1       # Cloudflare DNS
+    dns_search:
+      - .
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - himed_network
 

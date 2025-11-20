@@ -71,12 +71,22 @@ class ProcessSyncBatch implements ShouldQueue
             // Explicitly set the unique key (use 'id' if exists, otherwise use all columns)
             $uniqueBy = in_array('id', $columns) ? ['id'] : $columns;
 
-            // Log the data being processed for debugging
-            Log::debug("Upsert data sample:", ['sample_row' => $firstRow]);
-            Log::debug("Columns to update:", ['columns' => $columns]);
+            // **DEBUG: Log specific record we're looking for**
+            $targetRecord = collect($this->data)->firstWhere('id', 3850);
+            Log::debug("Target record for id 3850:", ['record' => $targetRecord]);
 
-            // Get all columns except the unique key for updating
+            // **DEBUG: Check if record exists in database before upsert**
+            $existingRecord = DB::table($this->table)->where('id', 3850)->first();
+            Log::debug("Existing record for id 3850:", ['record' => $existingRecord]);
+
             $updateColumns = array_diff($columns, $uniqueBy);
+
+            Log::debug("Upsert configuration:", [
+                'table' => $this->table,
+                'unique_by' => $uniqueBy,
+                'update_columns' => $updateColumns,
+                'total_records' => count($this->data)
+            ]);
 
             DB::table($this->table)->upsert(
                 $this->data,
@@ -84,20 +94,18 @@ class ProcessSyncBatch implements ShouldQueue
                 $updateColumns
             );
 
-            // Verify the update
-            $updatedCount = DB::table($this->table)
-                ->whereIn('id', array_column($this->data, 'id'))
-                ->count();
+            // **DEBUG: Check after upsert**
+            $afterUpsertRecord = DB::table($this->table)->where('id', 3850)->first();
+            Log::debug("Record after upsert for id 3850:", ['record' => $afterUpsertRecord]);
 
             Log::info("Upsert completed for table {$this->table}", [
                 'input_count' => count($this->data),
-                'updated_count' => $updatedCount
+                'updated_count' => DB::table($this->table)->whereIn('id', array_column($this->data, 'id'))->count()
             ]);
         } catch (\Exception $e) {
             Log::error("Upsert failed for table {$this->table}", [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'sample_data' => $this->data[0] ?? null
+                'trace' => $e->getTraceAsString()
             ]);
             throw $e;
         }
