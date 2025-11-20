@@ -216,13 +216,54 @@ class SatuSehatController extends Controller
                 //     }
                 // }
 
+                // dd("testing");
+                $resepObat = ResepObat::with('obat', 'obat.satusehat_kfa', 'obat.satusehat_medication_form', 'obat.satuan', 'route', 'satuan_dosis')->where('id_kunjungan', $kunjungan->id)->where('status', 'SELESAI')->get();
 
+
+
+
+                // $racikObat = Racik::with('obat', 'obat.obat', 'obat.obat.satuan', 'obat.obat.satusehat_kfa',  'satuan_obat', 'route', 'satuan_dosis', 'bentuk_sediaan', 'satusehat_medication_form')->where('id_kunjungan', $kunjungan->id)->where('status', 'SELESAI')->where('ket', '!=', 'DELETE')->get();
+
+
+                $resepObatIds = [];
+                $racikObatIds = [];
+                if (empty($satusehat_phases->medication)) {
+                    foreach ($resepObat as $resep) {
+                        // var_dump([
+                        //     'resep_medication' => $resep->obat->satusehat_medication_form,
+                        //     'resep_kfa' => $resep->obat->satusehat_kfa,
+                        //     'resep_signa1' => $resep->signa1,
+                        //     'resep_signa2' => $resep->signa2,
+                        //     'resep_signa_period' => $resep->signa_period,
+                        //     'resep_qty' => $resep->qty
+
+                        // ]);
+                        // echo json_encode([
+                        //     'resep_medication' => $resep->obat->satusehat_medication_form,
+                        //     'resep_kfa' => $resep->obat->satusehat_kfa,
+                        //     'resep_signa1' => $resep->signa1,
+                        //     'resep_signa2' => $resep->signa2,
+                        //     'resep_signa_period' => $resep->signa_period,
+                        //     'resep_qty' => $resep->total
+
+                        // ]);
+                        // die;
+                        if (empty($resep->obat->satusehat_medication_form) || empty($resep->obat->satusehat_kfa) || empty($resep->signa1) || empty($resep->signa2) || empty($resep->signa_period) || empty($resep->total)) continue;
+                        $resepObatIds[] = $resep->id;
+                        $bundle->setMedicationPrescription($prefixEncounter . $satusehat_phases->id_encounter, $dokter, $resep);
+                    }
+
+
+                    // foreach ($racikObat as $racik) {
+                    //     if (empty($racik->medication_form_code)  || empty($racik->signa1) || empty($racik->signa2) || empty($racik->signa_period) || empty($racik->satusehat_route_id) ||   empty($racik->obat) || empty($racik->bentuk_sediaan)) continue;
+                    //     $racikObatIds[] = $racik->id;
+                    //     $bundle->setMedicationPrescriptionMixed($prefixEncounter . $satusehat_phases->id_encounter, $dokter, $racik);
+                    // }
+                }
 
 
 
                 $result = $bundle->send($satusehat_phases->id_encounter);
-
-                dd($result);
 
                 if (!empty($result['id_encounter'])) {
                     $kunjungan->id_encounter = $result['id_encounter'];

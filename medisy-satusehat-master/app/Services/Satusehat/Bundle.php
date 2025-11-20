@@ -7,6 +7,7 @@ use DateTimeZone;
 use Ramsey\Uuid\Uuid;
 use GuzzleHttp\Client;
 use App\Models\Perusahaan;
+use App\Models\Satusehat_kfa;
 use GuzzleHttp\Psr7\Request;
 use App\Models\CatatanPasien;
 use Illuminate\Support\Carbon;
@@ -16,7 +17,7 @@ use GuzzleHttp\Exception\ClientException;
 
 class Bundle
 {
-    public $organizationID, $patientReference, $patientDisplay, $bundleEntry;
+    public $organizationID, $patientReference, $patientDisplay, $bundleEntry, $locationRoom, $medicationUUID;
 
     public function __construct()
     {
@@ -907,13 +908,381 @@ class Bundle
         }
     }
 
+    // public function setMedicationPrescription($idEncounter, $dokter, $resepObat)
+    // {
+    //     $uuidMedication = Uuid::uuid4();
+    //     $uuidMedicationService = Uuid::uuid4();
+    //     if (empty($idEncounter)) throw new \Exception("Please insert encounter before set condition");
+
+    //     $this->bundleEntry[] = [
+    //         "fullUrl" => "urn:uuid:" . $uuidMedication,
+    //         "resource" => [
+    //             "resourceType" => "Medication",
+    //             "meta" => [
+    //                 "profile" => [
+    //                     "https://fhir.kemkes.go.id/r4/StructureDefinition/Medication"
+    //                 ]
+    //             ],
+    //             "identifier" => [
+    //                 [
+    //                     "system" => "http://sys-ids.kemkes.go.id/medication/" . $this->organizationID,
+    //                     "use" => "official",
+    //                     "value" => (string) $resepObat['resep']->id
+    //                 ]
+    //             ],
+    //             "code" => [
+    //                 "coding" => [
+    //                     [
+    //                         "system" => "http://sys-ids.kemkes.go.id/kfa",
+    //                         "code" => $resepObat['obat']['kode_kfa'],
+    //                         "display" => $resepObat['obat']['nama_kfa'],
+    //                     ]
+    //                 ]
+    //             ],
+    //             "status" => "active",
+    //             "form" => [
+    //                 "coding" => [
+    //                     [
+    //                         "system" => $resepObat['medication']['codesystem'],
+    //                         "code" => $resepObat['medication']['code'],
+    //                         "display" => $resepObat['medication']['display'],
+    //                     ]
+    //                 ]
+    //             ],
+    //             "extension" => [
+    //                 [
+    //                     "url" => "https://fhir.kemkes.go.id/r4/StructureDefinition/MedicationType",
+    //                     "valueCodeableConcept" => [
+    //                         "coding" => [
+    //                             [
+    //                                 "system" => "http://terminology.kemkes.go.id/CodeSystem/medication-type",
+    //                                 "code" => "NC",
+    //                                 "display" => "Non-compound",
+    //                             ]
+    //                         ]
+    //                     ]
+    //                 ]
+    //             ]
+    //         ],
+    //         "request" => ["method" => "POST", "url" => "Medication"]
+    //     ];
+    //     $this->bundleEntry[] = [
+    //         "fullUrl" => "urn:uuid:" . $uuidMedicationService,
+    //         "resource" => [
+    //             "resourceType" => "MedicationRequest",
+    //             "identifier" => [
+    //                 [
+    //                     "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
+    //                     "use" => "official",
+    //                     "value" => (string) $resepObat['resep']->id,
+    //                 ],
+    //             ],
+    //             "status" => "completed",
+    //             "intent" => $resepObat['resep']->intent ?? "order",
+    //             "category" => [
+    //                 [
+    //                     "coding" => [
+    //                         [
+    //                             "system" => "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+    //                             "code" => "discharge",
+    //                             "display" => "Discharge"
+    //                         ]
+    //                     ]
+    //                 ]
+    //             ],
+    //             "priority" => "routine",
+    //             "reportedBoolean" => false,
+    //             "medicationReference" => [
+    //                 "reference" => "urn:uuid:" . $uuidMedication,
+    //                 "display" => $resepObat['obat']['nama_kfa']
+    //             ],
+    //             "subject" => [
+    //                 "reference" => $this->patientReference,
+    //                 "display" => $this->patientDisplay,
+    //             ],
+    //             "encounter" => [
+    //                 "reference" => $idEncounter,
+    //             ],
+    //             // FIX ME
+    //             "authoredOn" => $this->formattedDate($resepObat['resep']->created),
+    //             "requester" => [
+    //                 "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+    //                 "display" => $dokter->nama_lengkap,
+    //             ],
+    //             "dosageInstruction" => [
+    //                 [
+    //                     "additionalInstruction" => [
+    //                         [
+    //                             "text" => $resepObat['resep']->catatan,
+    //                         ]
+    //                     ],
+    //                     "patientInstruction" => $resepObat['resep']->catatan,
+    //                     "timing" => [
+    //                         "repeat" => [
+    //                             "frequency" => $resepObat['resep']->waktu,
+    //                             "period" => $resepObat['resep']->hari,
+    //                             "periodUnit" => $resepObat['resep']->signa_period,
+    //                         ]
+    //                     ],
+    //                     "route" => [
+    //                         "coding" => [
+    //                             [
+    //                                 "system" => $resepObat['dosis']['codesystem'],
+    //                                 "code" => $resepObat['route']['code'],
+    //                                 "display" => $resepObat['route']['display'],
+    //                             ]
+    //                         ]
+    //                     ],
+    //                     "doseAndRate" => [
+    //                         [
+    //                             "type" => [
+    //                                 "coding" => [
+    //                                     [
+    //                                         "system" => "http://terminology.hl7.org/CodeSystem/dose-rate-type",
+    //                                         "code" => "ordered",
+    //                                         "display" => "Ordered"
+    //                                     ]
+    //                                 ]
+    //                             ],
+    //                             "doseQuantity" => [
+    //                                 "value" => $resepObat['resep']->waktu,
+    //                                 "unit" => $resepObat['dosis']['nama'],
+    //                                 "system" => $resepObat['dosis']['codesystem'],
+    //                                 "code" => $resepObat['dosis']['code'],
+    //                             ]
+    //                         ]
+    //                     ]
+    //                 ]
+    //             ],
+    //             "dispenseRequest" => [
+    //                 "performer" => [
+    //                     'reference' => 'Organization/' . $this->organizationID
+    //                 ],
+    //                 "quantity" => [
+    //                     "value" => $resepObat['resep']->total,
+    //                     "unit" => $resepObat['dosis']['nama'],
+    //                     "system" => $resepObat['dosis']['codesystem'],
+    //                     "code" => $resepObat['dosis']['code'],
+    //                 ],
+    //             ]
+    //         ],
+    //         "request" => [
+    //             "method" => "POST",
+    //             "url" => "MedicationRequest"
+    //         ]
+    //     ];
+    // }
+
+    // public function setMedicationPrescriptionMixed($idEncounter, $dokter, $data)
+    // {
+
+    //     $obat = $data['obat'];
+    //     $racik = $data['racik'];
+    //     $medication = $data['medication'];
+    //     $route = $data['route'];
+    //     $satuan = $data['dosis'];
+
+    //     $uuidMedication = Uuid::uuid4();
+    //     $uuidMedicationService = Uuid::uuid4();
+    //     if (empty($idEncounter)) throw new \Exception("Please insert encounter before set condition");
+
+    //     $ingridients = [];
+    //     $ingridientsNames = [];
+    //     $medicationRequestIdentifier = [
+    //         [
+    //             "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
+    //             "use" => "official",
+    //             "value" => (string) $racik->id,
+    //         ]
+    //     ];
+    //     foreach ($racik->obat as $racikObat) {
+    //         $dataObatRacik = $this->getDataObat($racikObat->id_obat);
+    //         $obatDetail =  count($dataObatRacik['obat']) > 0;
+    //         $medicationDetail  = count($dataObatRacik['medication']) > 0;
+    //         $satuanDetail = count($dataObatRacik['satuan']) > 0;
+
+    //         $ingridients[] = [
+    //             "itemCodeableConcept" => [
+    //                 "coding" => [
+    //                     [
+    //                         "system" => "http://sys-ids.kemkes.go.id/kfa",
+    //                         "code" => $obatDetail == true ? $dataObatRacik['obat']['kode_kfa'] : '',
+    //                         "display" => $obatDetail == true ? $dataObatRacik['obat']['nama_kfa'] : '',
+    //                     ]
+    //                 ]
+    //             ],
+    //             "isActive" => true,
+    //             "strength" => [
+    //                 "numerator" => [
+    //                     "value" => $racikObat->dosis,
+    //                     "system" => $satuanDetail == true ? $dataObatRacik['satuan']['codesystem'] : '',
+    //                     "code" => $satuanDetail == true ? $dataObatRacik['satuan']['code'] : '',
+    //                 ],
+    //                 "denominator" => [
+    //                     "value" => $racik->bungkus,
+    //                     "system" => $medicationDetail == true ? $dataObatRacik['medication']['codesystem'] : '',
+    //                     "code" => $medicationDetail == true ? $dataObatRacik['medication']['code'] : '',
+    //                 ]
+    //             ]
+    //         ];
+
+    //         $medicationRequestIdentifier[] = [
+    //             "system" => "http://sys-ids.kemkes.go.id/prescription-item/" . $this->organizationID,
+    //             "use" => "official",
+    //             "value" => (string) $racikObat->id,
+    //         ];
+    //         $ingridientsNames[] = $dataObatRacik['obat']['nama_kfa'];
+    //     }
+
+    //     $this->bundleEntry[] = [
+    //         "fullUrl" => "urn:uuid:" . $uuidMedication,
+    //         "resource" => [
+    //             "resourceType" => "Medication",
+    //             "meta" => [
+    //                 "profile" => [
+    //                     "https://fhir.kemkes.go.id/r4/StructureDefinition/Medication"
+    //                 ]
+    //             ],
+    //             "identifier" => [
+    //                 [
+    //                     "system" => "http://sys-ids.kemkes.go.id/medication/" . $this->organizationID,
+    //                     "use" => "official",
+    //                     "value" => (string) $racik->id
+    //                 ]
+    //             ],
+    //             "status" => "active",
+    //             "form" => [
+    //                 "coding" => [
+    //                     [
+    //                         "system" => $medication['codesystem'],
+    //                         "code" => $medication['code'],
+    //                         "display" => $medication['display'],
+    //                     ]
+    //                 ]
+    //             ],
+    //             "ingredient" => $ingridients,
+    //             "extension" => [
+    //                 [
+    //                     "url" => "https://fhir.kemkes.go.id/r4/StructureDefinition/MedicationType",
+    //                     "valueCodeableConcept" => [
+    //                         "coding" => [
+    //                             [
+    //                                 "system" => "http://terminology.kemkes.go.id/CodeSystem/medication-type",
+    //                                 "code" => "SD",
+    //                                 "display" => "Gives of such doses",
+    //                             ]
+    //                         ]
+    //                     ]
+    //                 ]
+    //             ]
+    //         ],
+    //         "request" => ["method" => "POST", "url" => "Medication"]
+    //     ];
+
+    //     $this->bundleEntry[] = [
+    //         "fullUrl" => "urn:uuid:" . $uuidMedicationService,
+    //         "resource" => [
+    //             "resourceType" => "MedicationRequest",
+    //             "identifier" => $medicationRequestIdentifier,
+    //             "status" => "completed",
+    //             "intent" => $racik->intent ?? "order",
+    //             "category" => [
+    //                 [
+    //                     "coding" => [
+    //                         [
+    //                             "system" => "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+    //                             "code" => "discharge",
+    //                             "display" => "Discharge"
+    //                         ]
+    //                     ]
+    //                 ]
+    //             ],
+    //             "priority" => "routine",
+    //             "reportedBoolean" => false,
+    //             "medicationReference" => [
+    //                 "reference" => "urn:uuid:" . $uuidMedication,
+    //                 "display" => implode(" / ", $ingridientsNames),
+    //             ],
+    //             "subject" => [
+    //                 "reference" => $this->patientReference,
+    //                 "display" => $this->patientDisplay,
+    //             ],
+    //             "encounter" => [
+    //                 "reference" => $idEncounter,
+    //             ],
+    //             "authoredOn" => $this->formattedDate($racik->created),
+    //             "requester" => [
+    //                 "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+    //                 "display" => $dokter->nama_lengkap,
+    //             ],
+    //             "dosageInstruction" => [
+    //                 [
+    //                     "additionalInstruction" => [
+    //                         [
+    //                             "text" => $racik->catatan,
+    //                         ]
+    //                     ],
+    //                     "patientInstruction" => $racik->catatan,
+    //                     "timing" => [
+    //                         "repeat" => [
+    //                             "frequency" => $racik->waktu,
+    //                             "period" => 1,
+    //                             "periodUnit" => $racik->signa_period,
+    //                         ]
+    //                     ],
+    //                     "route" => [
+    //                         "coding" => [
+    //                             [
+    //                                 "system" => $route['codesystem'],
+    //                                 "code" => $route['code'],
+    //                                 "display" => $route['display'],
+    //                             ]
+    //                         ]
+    //                     ],
+    //                     "doseAndRate" => [
+    //                         [
+    //                             "doseQuantity" => [
+    //                                 "value" => $racik->waktu,
+    //                                 "unit" => $satuan['nama'],
+    //                                 "system" => $satuan['codesystem'],
+    //                                 "code" => $satuan['code'],
+    //                             ]
+    //                         ]
+    //                     ]
+    //                 ]
+    //             ],
+    //             "dispenseRequest" => [
+    //                 "performer" => [
+    //                     'reference' => 'Organization/' . $this->organizationID
+    //                 ],
+    //                 "quantity" => [
+    //                     "value" => $racik->bungkus,
+    //                     "unit" => $satuan['nama'],
+    //                     "system" => $satuan['codesystem'],
+    //                     "code" => $satuan['code'],
+    //                 ],
+    //             ]
+    //         ],
+    //         "request" => [
+    //             "method" => "POST",
+    //             "url" => "MedicationRequest"
+    //         ]
+    //     ];
+    // }
+
     public function setMedicationPrescription($idEncounter, $dokter, $resepObat)
     {
         $uuidMedication = Uuid::uuid4();
+        $this->medicationUUID = $uuidMedication;
         $uuidMedicationService = Uuid::uuid4();
-        if (empty($idEncounter)) throw new \Exception("Please insert encounter before set condition");
+        $uuidMedicationDispense = Uuid::uuid4();
 
-        $this->bundleEntry[] = [
+        if (empty($idEncounter)) throw new \Exception("Please insert encounter before set condition");
+        $dataIngredients = Satusehat_kfa::where('kode_kfa_pa', $resepObat->obat->kode_kfa)->get();
+        $ingredient = [];
+
+        $this->bundleEntry['title_payload'][] = 'medication';
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $uuidMedication,
             "resource" => [
                 "resourceType" => "Medication",
@@ -926,15 +1295,15 @@ class Bundle
                     [
                         "system" => "http://sys-ids.kemkes.go.id/medication/" . $this->organizationID,
                         "use" => "official",
-                        "value" => (string) $resepObat['resep']->id
+                        "value" => (string) $resepObat->id . ''
                     ]
                 ],
                 "code" => [
                     "coding" => [
                         [
                             "system" => "http://sys-ids.kemkes.go.id/kfa",
-                            "code" => $resepObat['obat']['kode_kfa'],
-                            "display" => $resepObat['obat']['nama_kfa'],
+                            "code" => $resepObat->obat->kode_kfa,
+                            "display" => $resepObat->obat->satusehat_kfa->display_name,
                         ]
                     ]
                 ],
@@ -942,12 +1311,40 @@ class Bundle
                 "form" => [
                     "coding" => [
                         [
-                            "system" => $resepObat['medication']['codesystem'],
-                            "code" => $resepObat['medication']['code'],
-                            "display" => $resepObat['medication']['display'],
+                            "system" => $resepObat->obat->satusehat_medication_form->system,
+                            "code" => $resepObat->obat->satusehat_medication_form->code,
+                            "display" => $resepObat->obat->satusehat_medication_form->display,
                         ]
                     ]
                 ],
+
+                "ingredient" => [
+                    [
+                        "itemCodeableConcept" => [
+                            "coding" => [
+                                [
+                                    "system" => "http://sys-ids.kemkes.go.id/kfa",
+                                    "code" => $resepObat->obat->satusehat_kfa->zat_aktif_kode_kfa_pa,
+                                    "display" => $resepObat->obat->satusehat_kfa->product_template_display_name
+                                ]
+                            ]
+                        ],
+                        "isActive" => true,
+                        "strength" => [
+                            "numerator" => [
+                                "value" => (float)$resepObat->obat->satusehat_kfa->numerator,
+                                "system" => $resepObat->obat->satusehat_kfa->CodeSystem,
+                                "code" => $resepObat->obat->satusehat_kfa->satuan
+                            ],
+                            "denominator" => [
+                                "value" => (float)$resepObat->obat->satusehat_kfa->Denominator,
+                                "system" => $resepObat->obat->satusehat_kfa->CodeSystem_disesuaikan,
+                                "code" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan
+                            ]
+                        ]
+                    ]
+                ],
+
                 "extension" => [
                     [
                         "url" => "https://fhir.kemkes.go.id/r4/StructureDefinition/MedicationType",
@@ -965,7 +1362,9 @@ class Bundle
             ],
             "request" => ["method" => "POST", "url" => "Medication"]
         ];
-        $this->bundleEntry[] = [
+
+        $this->bundleEntry['title_payload'][] = 'medication request';
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $uuidMedicationService,
             "resource" => [
                 "resourceType" => "MedicationRequest",
@@ -973,18 +1372,18 @@ class Bundle
                     [
                         "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
                         "use" => "official",
-                        "value" => (string) $resepObat['resep']->id,
+                        "value" => (string) $resepObat->id . '',
                     ],
                 ],
                 "status" => "completed",
-                "intent" => $resepObat['resep']->intent ?? "order",
+                "intent" => $resepObat->intent ?? "order",
                 "category" => [
                     [
                         "coding" => [
                             [
                                 "system" => "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
-                                "code" => "discharge",
-                                "display" => "Discharge"
+                                "code" => "outpatient",
+                                "display" => "Outpatient"
                             ]
                         ]
                     ]
@@ -993,7 +1392,7 @@ class Bundle
                 "reportedBoolean" => false,
                 "medicationReference" => [
                     "reference" => "urn:uuid:" . $uuidMedication,
-                    "display" => $resepObat['obat']['nama_kfa']
+                    "display" => $resepObat->obat->satusehat_kfa->display_name
                 ],
                 "subject" => [
                     "reference" => $this->patientReference,
@@ -1003,7 +1402,7 @@ class Bundle
                     "reference" => $idEncounter,
                 ],
                 // FIX ME
-                "authoredOn" => $this->formattedDate($resepObat['resep']->created),
+                "authoredOn" => $this->formattedDate($resepObat->created),
                 "requester" => [
                     "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
                     "display" => $dokter->nama_lengkap,
@@ -1012,23 +1411,23 @@ class Bundle
                     [
                         "additionalInstruction" => [
                             [
-                                "text" => $resepObat['resep']->catatan,
+                                "text" => $resepObat->catatan,
                             ]
                         ],
-                        "patientInstruction" => $resepObat['resep']->catatan,
+                        "patientInstruction" => $resepObat->catatan,
                         "timing" => [
                             "repeat" => [
-                                "frequency" => $resepObat['resep']->waktu,
-                                "period" => $resepObat['resep']->hari,
-                                "periodUnit" => $resepObat['resep']->signa_period,
+                                "frequency" => $resepObat->signa1,
+                                "period" => $resepObat->signa2,
+                                "periodUnit" => $resepObat->signa_period,
                             ]
                         ],
                         "route" => [
                             "coding" => [
                                 [
-                                    "system" => $resepObat['dosis']['codesystem'],
-                                    "code" => $resepObat['route']['code'],
-                                    "display" => $resepObat['route']['display'],
+                                    "system" => $resepObat->route->codesystem,
+                                    "code" => $resepObat->route->code,
+                                    "display" => $resepObat->route->display,
                                 ]
                             ]
                         ],
@@ -1044,45 +1443,145 @@ class Bundle
                                     ]
                                 ],
                                 "doseQuantity" => [
-                                    "value" => $resepObat['resep']->waktu,
-                                    "unit" => $resepObat['dosis']['nama'],
-                                    "system" => $resepObat['dosis']['codesystem'],
-                                    "code" => $resepObat['dosis']['code'],
+                                    "value" => $resepObat->signa1,
+                                    "unit" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan,
+                                    "system" => $resepObat->obat->satusehat_kfa->CodeSystem_disesuaikan,
+                                    "code" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan
                                 ]
                             ]
                         ]
                     ]
                 ],
                 "dispenseRequest" => [
+                    "quantity" => [
+                        "value" => $resepObat->total,
+                        "unit" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan,
+                        "system" => $resepObat->obat->satusehat_kfa->CodeSystem_disesuaikan,
+                        "code" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan
+                    ],
                     "performer" => [
                         'reference' => 'Organization/' . $this->organizationID
-                    ],
-                    "quantity" => [
-                        "value" => $resepObat['resep']->total,
-                        "unit" => $resepObat['dosis']['nama'],
-                        "system" => $resepObat['dosis']['codesystem'],
-                        "code" => $resepObat['dosis']['code'],
-                    ],
+                    ]
                 ]
+
             ],
             "request" => [
                 "method" => "POST",
                 "url" => "MedicationRequest"
             ]
         ];
+
+        $this->bundleEntry['title_payload'][] = 'medicaton dispense resep';
+        $this->bundleEntry['resource'][] = [
+            "fullUrl" => "urn:uuid:" . $uuidMedicationDispense,
+            "resource" => [
+                "resourceType" => "MedicationDispense",
+                "identifier" => [
+                    [
+                        "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
+                        "use" => "official",
+                        "value" => (string) $resepObat->id . ''
+                    ],
+                    [
+                        "system" => "http://sys-ids.kemkes.go.id/prescription-item/" . $this->organizationID,
+                        "use" => "official",
+                        "value" => (string) $resepObat->id . '' . '-1'
+                    ],
+                ],
+                "status" => "completed",
+                "category" => [
+                    "coding" => [
+                        [
+                            "system" => "http://terminology.hl7.org/fhir/CodeSystem/medicationdispense-category",
+                            "code" => "outpatient",
+                            "display" => "Outpatient"
+                        ]
+                    ]
+                ],
+                "medicationReference" => [
+                    "reference" => "Medication/" . $uuidMedication,
+                    "display" => $resepObat->obat->satusehat_kfa->display_name,
+                ],
+                "subject" => [
+                    "reference" => $this->patientReference,
+                    "display" => $this->patientDisplay
+                ],
+                "context" => [
+                    "reference" => $idEncounter
+                ],
+                "performer" => [
+                    [
+                        "actor" => [
+                            "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+                            "display" => $dokter->nama_lengkap,
+                        ]
+                    ]
+                ],
+                "location" => $this->locationRoom,
+                "authorizingPrescription" => [
+                    [
+                        "reference" => "MedicationRequest/" . $uuidMedicationService
+                    ]
+                ],
+                "quantity" => [
+                    "value" => $resepObat->total,
+                    "unit" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan,
+                    "system" => $resepObat->obat->satusehat_kfa->CodeSystem_disesuaikan,
+                    "code" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan
+                ],
+                "daysSupply" => [
+                    "value" => 30,
+                    "unit" => "Day",
+                    "system" => "http://unitsofmeasure.org",
+                    "code" => "d"
+                ],
+                "whenPrepared" => $this->formattedDate($resepObat->created_at),
+                "whenHandedOver" => $this->formattedDate($resepObat->created_at),
+                "dosageInstruction" => [
+                    [
+                        "sequence" => 1,
+                        "text" => $resepObat->catatan,
+                        "timing" => [
+                            "repeat" => [
+                                "frequency" => $resepObat->signa1,
+                                "period" => $resepObat->signa2,
+                                "periodUnit" => $resepObat->signa_period,
+                            ]
+                        ],
+                        "doseAndRate" => [
+                            [
+                                "type" => [
+                                    "coding" => [
+                                        [
+                                            "system" => "http://terminology.hl7.org/CodeSystem/dose-rate-type",
+                                            "code" => "ordered",
+                                            "display" => "Ordered"
+                                        ]
+                                    ]
+                                ],
+                                "doseQuantity" => [
+                                    "value" => $resepObat->signa1,
+                                    "unit" => $resepObat->obat->satusehat_kfa->satuan,
+                                    "system" => $resepObat->obat->satusehat_kfa->CodeSystem,
+                                    "code" => $resepObat->obat->satusehat_kfa->satuan
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            "request" => [
+                "method" => "POST",
+                "url" => "MedicationDispense"
+            ]
+        ];
     }
 
-    public function setMedicationPrescriptionMixed($idEncounter, $dokter, $data)
+    public function setMedicationPrescriptionMixed($idEncounter, $dokter, $racik)
     {
-
-        $obat = $data['obat'];
-        $racik = $data['racik'];
-        $medication = $data['medication'];
-        $route = $data['route'];
-        $satuan = $data['dosis'];
-
         $uuidMedication = Uuid::uuid4();
         $uuidMedicationService = Uuid::uuid4();
+        $uuidMedicationDispense = Uuid::uuid4();
         if (empty($idEncounter)) throw new \Exception("Please insert encounter before set condition");
 
         $ingridients = [];
@@ -1091,182 +1590,292 @@ class Bundle
             [
                 "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
                 "use" => "official",
-                "value" => (string) $racik->id,
+                "value" => (string) $racik->id . '',
             ]
         ];
+
         foreach ($racik->obat as $racikObat) {
-            $dataObatRacik = $this->getDataObat($racikObat->id_obat);
-            $obatDetail =  count($dataObatRacik['obat']) > 0;
-            $medicationDetail  = count($dataObatRacik['medication']) > 0;
-            $satuanDetail = count($dataObatRacik['satuan']) > 0;
-
-            $ingridients[] = [
-                "itemCodeableConcept" => [
-                    "coding" => [
-                        [
-                            "system" => "http://sys-ids.kemkes.go.id/kfa",
-                            "code" => $obatDetail == true ? $dataObatRacik['obat']['kode_kfa'] : '',
-                            "display" => $obatDetail == true ? $dataObatRacik['obat']['nama_kfa'] : '',
-                        ]
-                    ]
-                ],
-                "isActive" => true,
-                "strength" => [
-                    "numerator" => [
-                        "value" => $racikObat->dosis,
-                        "system" => $satuanDetail == true ? $dataObatRacik['satuan']['codesystem'] : '',
-                        "code" => $satuanDetail == true ? $dataObatRacik['satuan']['code'] : '',
-                    ],
-                    "denominator" => [
-                        "value" => $racik->bungkus,
-                        "system" => $medicationDetail == true ? $dataObatRacik['medication']['codesystem'] : '',
-                        "code" => $medicationDetail == true ? $dataObatRacik['medication']['code'] : '',
-                    ]
-                ]
-            ];
-
-            $medicationRequestIdentifier[] = [
-                "system" => "http://sys-ids.kemkes.go.id/prescription-item/" . $this->organizationID,
-                "use" => "official",
-                "value" => (string) $racikObat->id,
-            ];
-            $ingridientsNames[] = $dataObatRacik['obat']['nama_kfa'];
-        }
-
-        $this->bundleEntry[] = [
-            "fullUrl" => "urn:uuid:" . $uuidMedication,
-            "resource" => [
-                "resourceType" => "Medication",
-                "meta" => [
-                    "profile" => [
-                        "https://fhir.kemkes.go.id/r4/StructureDefinition/Medication"
-                    ]
-                ],
-                "identifier" => [
-                    [
-                        "system" => "http://sys-ids.kemkes.go.id/medication/" . $this->organizationID,
-                        "use" => "official",
-                        "value" => (string) $racik->id
-                    ]
-                ],
-                "status" => "active",
-                "form" => [
-                    "coding" => [
-                        [
-                            "system" => $medication['codesystem'],
-                            "code" => $medication['code'],
-                            "display" => $medication['display'],
-                        ]
-                    ]
-                ],
-                "ingredient" => $ingridients,
-                "extension" => [
-                    [
-                        "url" => "https://fhir.kemkes.go.id/r4/StructureDefinition/MedicationType",
-                        "valueCodeableConcept" => [
-                            "coding" => [
-                                [
-                                    "system" => "http://terminology.kemkes.go.id/CodeSystem/medication-type",
-                                    "code" => "SD",
-                                    "display" => "Gives of such doses",
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ],
-            "request" => ["method" => "POST", "url" => "Medication"]
-        ];
-
-        $this->bundleEntry[] = [
-            "fullUrl" => "urn:uuid:" . $uuidMedicationService,
-            "resource" => [
-                "resourceType" => "MedicationRequest",
-                "identifier" => $medicationRequestIdentifier,
-                "status" => "completed",
-                "intent" => $racik->intent ?? "order",
-                "category" => [
-                    [
+            if ($racikObat->obat->satusehat_kfa) {
+                $ingridients[] = [
+                    "itemCodeableConcept" => [
                         "coding" => [
                             [
-                                "system" => "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
-                                "code" => "discharge",
-                                "display" => "Discharge"
+                                "system" => "http://sys-ids.kemkes.go.id/kfa",
+                                "code" => $racikObat->obat->satusehat_kfa->kode_kfa_pa,
+                                "display" => $racikObat->obat->satusehat_kfa->display_name,
+                            ]
+                        ]
+                    ],
+                    "isActive" => true,
+                    "strength" => [
+                        "numerator" => [
+                            "value" => (float)$racikObat->obat->satusehat_kfa->numerator,
+                            "system" => $racikObat->obat->satusehat_kfa->CodeSystem,
+                            "code" => $racikObat->obat->satusehat_kfa->satuan,
+                        ],
+                        "denominator" => [
+                            "value" => (float)$racikObat->obat->satusehat_kfa->Denominator,
+                            "system" => $racikObat->obat->satusehat_kfa->CodeSystem_disesuaikan,
+                            "code" => $racikObat->obat->satusehat_kfa->satuan_disesuaikan,
+                        ]
+                    ]
+                ];
+                $medicationRequestIdentifier[] = [
+                    "system" => "http://sys-ids.kemkes.go.id/prescription-item/" . $this->organizationID,
+                    "use" => "official",
+                    "value" => (string) $racikObat->id,
+                ];
+                $ingridientsNames[] = $racikObat->obat->satusehat_kfa->display_name;
+            }
+        }
+
+        if (count($ingridients) != 0) {
+            $this->bundleEntry['title_payload'][] = 'medication_mixed';
+            $this->bundleEntry['resource'][] = [
+                "fullUrl" => "urn:uuid:" . $uuidMedication,
+                "resource" => [
+                    "resourceType" => "Medication",
+                    "meta" => [
+                        "profile" => [
+                            "https://fhir.kemkes.go.id/r4/StructureDefinition/Medication"
+                        ]
+                    ],
+                    "identifier" => [
+                        [
+                            "system" => "http://sys-ids.kemkes.go.id/medication/" . $this->organizationID,
+                            "use" => "official",
+                            "value" => (string) $racik->id . ''
+                        ]
+                    ],
+                    "status" => "active",
+                    "form" => [
+                        "coding" => [
+                            [
+                                "system" => $racik->satusehat_medication_form->system,
+                                "code" => $racik->satusehat_medication_form->code,
+                                "display" => $racik->satusehat_medication_form->display,
+                            ]
+                        ]
+                    ],
+                    "ingredient" => $ingridients,
+                    "extension" => [
+                        [
+                            "url" => "https://fhir.kemkes.go.id/r4/StructureDefinition/MedicationType",
+                            "valueCodeableConcept" => [
+                                "coding" => [
+                                    [
+                                        "system" => "http://terminology.kemkes.go.id/CodeSystem/medication-type",
+                                        "code" => "SD",
+                                        "display" => "Gives of such doses",
+                                    ]
+                                ]
                             ]
                         ]
                     ]
                 ],
-                "priority" => "routine",
-                "reportedBoolean" => false,
-                "medicationReference" => [
-                    "reference" => "urn:uuid:" . $uuidMedication,
-                    "display" => implode(" / ", $ingridientsNames),
-                ],
-                "subject" => [
-                    "reference" => $this->patientReference,
-                    "display" => $this->patientDisplay,
-                ],
-                "encounter" => [
-                    "reference" => $idEncounter,
-                ],
-                "authoredOn" => $this->formattedDate($racik->created),
-                "requester" => [
-                    "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
-                    "display" => $dokter->nama_lengkap,
-                ],
-                "dosageInstruction" => [
-                    [
-                        "additionalInstruction" => [
-                            [
-                                "text" => $racik->catatan,
-                            ]
-                        ],
-                        "patientInstruction" => $racik->catatan,
-                        "timing" => [
-                            "repeat" => [
-                                "frequency" => $racik->waktu,
-                                "period" => 1,
-                                "periodUnit" => $racik->signa_period,
-                            ]
-                        ],
-                        "route" => [
+                "request" => ["method" => "POST", "url" => "Medication"]
+            ];
+
+
+            $this->bundleEntry['title_payload'][] = 'medication request mixed';
+            $this->bundleEntry['resource'][] = [
+                "fullUrl" => "urn:uuid:" . $uuidMedicationService,
+                "resource" => [
+                    "resourceType" => "MedicationRequest",
+                    "identifier" => $medicationRequestIdentifier,
+                    "status" => "completed",
+                    "intent" => $racik->intent ?? "order",
+                    "category" => [
+                        [
                             "coding" => [
                                 [
-                                    "system" => $route['codesystem'],
-                                    "code" => $route['code'],
-                                    "display" => $route['display'],
-                                ]
-                            ]
-                        ],
-                        "doseAndRate" => [
-                            [
-                                "doseQuantity" => [
-                                    "value" => $racik->waktu,
-                                    "unit" => $satuan['nama'],
-                                    "system" => $satuan['codesystem'],
-                                    "code" => $satuan['code'],
+                                    "system" => "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+                                    "code" => "discharge",
+                                    "display" => "Discharge"
                                 ]
                             ]
                         ]
+                    ],
+                    "priority" => "routine",
+                    "reportedBoolean" => false,
+                    "medicationReference" => [
+                        "reference" => "urn:uuid:" . $this->medicationUUID,
+                        "display" => implode(" / ", $ingridientsNames),
+                    ],
+                    "subject" => [
+                        "reference" => $this->patientReference,
+                        "display" => $this->patientDisplay,
+                    ],
+                    "encounter" => [
+                        "reference" => $idEncounter,
+                    ],
+                    "authoredOn" => $this->formattedDate($racik->created),
+                    "requester" => [
+                        "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+                        "display" => $dokter->nama_lengkap,
+                    ],
+                    "dosageInstruction" => [
+                        [
+                            "additionalInstruction" => [
+                                [
+                                    "text" => $racik->catatan,
+                                ]
+                            ],
+                            "patientInstruction" => $racik->catatan,
+                            "timing" => [
+                                "repeat" => [
+                                    "frequency" => $racik->signa1,
+                                    "period" => $racik->signa2,
+                                    "periodUnit" => $racik->signa_period,
+                                ]
+                            ],
+                            "route" => [
+                                "coding" => [
+                                    [
+                                        "system" => $racik->route->codesystem,
+                                        "code" => $racik->route->code,
+                                        "display" => $racik->route->display,
+                                    ]
+                                ]
+                            ],
+                            "doseAndRate" => [
+                                [
+                                    "doseQuantity" => [
+                                        "value" => (float)$racik->signa1,
+                                        "unit" => $racik->bentuk_sediaan->display,
+                                        "system" => $racik->bentuk_sediaan->system,
+                                        "code" => $racik->bentuk_sediaan->code,
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ],
+                    "dispenseRequest" => [
+                        "performer" => [
+                            'reference' => 'Organization/' . $this->organizationID
+                        ],
+                        "quantity" => [
+                            "value" => (float)$racik->signa1,
+                            "unit" => $racik->bentuk_sediaan->display,
+                            "system" => $racik->bentuk_sediaan->system,
+                            "code" => $racik->bentuk_sediaan->code,
+                        ],
                     ]
                 ],
-                "dispenseRequest" => [
+                "request" => [
+                    "method" => "POST",
+                    "url" => "MedicationRequest"
+                ]
+            ];
+
+            // dd($racik->satusehat_medication_form);
+
+
+            $this->bundleEntry['title_payload'][] = 'medicaton dispense racik';
+            $this->bundleEntry['resource'][] = [
+                "fullUrl" => "urn:uuid:" . $uuidMedicationDispense,
+                "resource" => [
+                    "resourceType" => "MedicationDispense",
+                    "identifier" => [
+                        [
+                            "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
+                            "use" => "official",
+                            "value" => (string) $racik->id . ''
+                        ],
+                        [
+                            "system" => "http://sys-ids.kemkes.go.id/prescription-item/" . $this->organizationID,
+                            "use" => "official",
+                            "value" => (string) $racik->id . '' . '-1'
+                        ],
+                    ],
+                    "status" => "completed",
+                    "category" => [
+                        "coding" => [
+                            [
+                                "system" => "http://terminology.hl7.org/fhir/CodeSystem/medicationdispense-category",
+                                "code" => "outpatient",
+                                "display" => "Outpatient"
+                            ]
+                        ]
+                    ],
+                    "medicationReference" => [
+                        "reference" => "Medication/" . $uuidMedication,
+                        "display" => '-',
+                    ],
+                    "subject" => [
+                        "reference" => $this->patientReference,
+                        "display" => $this->patientDisplay
+                    ],
+                    "context" => [
+                        "reference" => $idEncounter
+                    ],
                     "performer" => [
-                        'reference' => 'Organization/' . $this->organizationID
+                        [
+                            "actor" => [
+                                "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+                                "display" => $dokter->nama_lengkap,
+                            ]
+                        ]
+                    ],
+                    "location" => $this->locationRoom,
+                    "authorizingPrescription" => [
+                        [
+                            "reference" => "MedicationRequest/" . $uuidMedicationService
+                        ]
                     ],
                     "quantity" => [
                         "value" => $racik->bungkus,
-                        "unit" => $satuan['nama'],
-                        "system" => $satuan['codesystem'],
-                        "code" => $satuan['code'],
+                        "unit" => $racik->bentuk_sediaan->code,
+                        "system" => $racik->bentuk_sediaan->system,
+                        "code" => $racik->bentuk_sediaan->code
                     ],
+                    "daysSupply" => [
+                        "value" => 30,
+                        "unit" => "Day",
+                        "system" => "http://unitsofmeasure.org",
+                        "code" => "d"
+                    ],
+                    "whenPrepared" => $this->formattedDate($racik->created),
+                    "whenHandedOver" => $this->formattedDate($racik->created),
+                    "dosageInstruction" => [
+                        [
+                            "sequence" => 1,
+                            "text" => $racik->catatan,
+                            "timing" => [
+                                "repeat" => [
+                                    "frequency" => $racik->signa1,
+                                    "period" => $racik->signa2,
+                                    "periodUnit" => $racik->signa_period,
+                                ]
+                            ],
+                            "doseAndRate" => [
+                                [
+                                    "type" => [
+                                        "coding" => [
+                                            [
+                                                "system" => "http://terminology.hl7.org/CodeSystem/dose-rate-type",
+                                                "code" => "ordered",
+                                                "display" => "Ordered"
+                                            ]
+                                        ]
+                                    ],
+                                    "doseQuantity" => [
+                                        "value" => $racik->signa1,
+                                        "unit" => $racik->bentuk_sediaan->display,
+                                        "system" => $racik->bentuk_sediaan->system,
+                                        "code" => $racik->bentuk_sediaan->code
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                "request" => [
+                    "method" => "POST",
+                    "url" => "MedicationDispense"
                 ]
-            ],
-            "request" => [
-                "method" => "POST",
-                "url" => "MedicationRequest"
-            ]
-        ];
+            ];
+        }
     }
 
     public function getDataObat($id_obat = "")
@@ -1299,10 +1908,6 @@ class Bundle
             "type" => "transaction",
             "entry" => $this->bundleEntry['resource']
         ];
-
-
-        // echo json_encode($body);
-        // die;
 
         if (empty($this->bundleEntry)) {
             return [
