@@ -7,15 +7,17 @@ use DateTimeZone;
 use Ramsey\Uuid\Uuid;
 use GuzzleHttp\Client;
 use App\Models\Perusahaan;
+use App\Models\Satusehat_kfa;
 use GuzzleHttp\Psr7\Request;
 use App\Models\CatatanPasien;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use GuzzleHttp\Exception\ClientException;
 
 class Bundle
 {
-    public $organizationID, $patientReference, $patientDisplay, $bundleEntry;
+    public $organizationID, $patientReference, $patientDisplay, $bundleEntry, $locationRoom, $medicationUUID;
 
     public function __construct()
     {
@@ -37,7 +39,8 @@ class Bundle
         }
 
         $id = Uuid::uuid4()->toString();
-        $this->bundleEntry[] = [
+        $this->bundleEntry['title_payload'][] =  'Create Encounter';
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $id,
             "resource" => [
                 'resourceType' => 'Encounter',
@@ -148,7 +151,8 @@ class Bundle
             ];
         }
 
-        $this->bundleEntry[] = [
+        $this->bundleEntry['title_payload'][] = $patient_note->jenis;
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $uuid,
             "resource" => [
                 'resourceType' => 'AllergyIntolerance',
@@ -258,8 +262,8 @@ class Bundle
                 "code"   => "Cel"
             ];
         }
-
-        $this->bundleEntry[] = [
+        $this->bundleEntry['title_payload'][] = 'observation';
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $uuid,
             "resource" => [
                 'resourceType' => 'Observation',
@@ -297,12 +301,370 @@ class Bundle
         ];
     }
 
+    public function setServiceRequest($idEncounter, $id, $dataLab, $dokter)
+    {
+        $pemeriksaanLab = $dataLab->PemeriksaanLab;
+        $petugas = $dataLab->Petugas;
+        if (empty($petugas) || empty($petugas->id_dokter_satusehat)) {
+            $petugas = $dokter;
+        }
+
+        if ($idEncounter == null) throw new \Exception("Please insert encounter before set observation");
+        $uuid = Uuid::uuid4()->toString();
+
+        $this->bundleEntry['title_payload'][] = 'lab';
+        $this->bundleEntry['resource'][] = [
+            'fullUrl' => "urn:uuid:" . $uuid,
+            'resource' =>  [
+                "resourceType" => "ServiceRequest",
+                "identifier" => [
+                    [
+                        "system" => "http://sys-ids.kemkes.go.id/servicerequest/" . $this->organizationID,
+                        "value" => (string) $id
+                    ]
+                ],
+                "status" => "active",
+                "intent" => "original-order",
+                "priority" => "routine",
+                "category" => [
+                    [
+                        "coding" => [
+                            [
+                                "system" => "http://snomed.info/sct",
+                                "code" => "108252007",
+                                "display" => "Laboratory procedure"
+                            ]
+                        ]
+                    ]
+                ],
+                "code" => [
+                    "coding" => [
+                        [
+                            "system" => "http://loinc.org",
+                            "code" => $pemeriksaanLab->Code,
+                            "display" => $pemeriksaanLab->code_display
+                        ]
+                    ],
+                    "text" => $pemeriksaanLab->nama
+                ],
+                "subject" => [
+                    "reference" => $this->patientReference
+                ],
+                "encounter" => [
+                    "reference" => $idEncounter,
+                    "display" => "Permintaan Pemeriksaan Lab " . $this->patientDisplay . " pada tanggal " . $dataLab->created
+                ],
+                "occurrenceDateTime" => $this->formattedDate($dataLab->created),
+                "authoredOn" => $this->formattedDate($dataLab->created),
+                "requester" => [
+                    "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+                    "display" => $dokter->nama_lengkap
+                ],
+                "performer" => [
+                    [
+                        "reference" => "Practitioner/" . $petugas->id_dokter_satusehat,
+                        "display" => $petugas->nama_lengkap
+                    ]
+                ]
+            ],
+            "request" => ["method" => "POST", "url" => "ServiceRequest"]
+        ];
+
+        return $uuid;
+    }
+
+    public function setSpecimen($idEncounter, $serviceRequestLabId, $id, $dataLab)
+    {
+        if ($idEncounter == null) throw new \Exception("Please insert encounter before set observation");
+        $uuid = Uuid::uuid4()->toString();
+
+        $this->bundleEntry['title_payload'][] = 'specimen';
+        $this->bundleEntry['resource'][] = [
+            'fullUrl' => "urn:uuid:" . $uuid,
+            'resource' =>  [
+                "resourceType" => "Specimen",
+                "identifier" => [
+                    [
+                        "system" => "http://sys-ids.kemkes.go.id/specimen/" . $this->organizationID,
+                        "value" => (string) $id
+                    ]
+                ],
+                "status" => "available",
+                "type" => [
+                    "coding" => [
+                        [
+                            "system" => "http://snomed.info/sct",
+                            "code" => $dataLab->SampelLab->code,
+                            "display" => $dataLab->SampelLab->Snomed->term
+                        ]
+                    ]
+                ],
+                "collection" => [
+                    "collectedDateTime" => $this->formattedDate((new Carbon($dataLab->jam_ambil_sample))->format("Y-m-d H:i:s")),
+                ],
+                "subject" => [
+                    "reference" => $this->patientReference,
+                    "display" => $this->patientDisplay
+                ],
+                "request" => [
+                    [
+                        "reference" => "ServiceRequest/" . $serviceRequestLabId,
+                    ],
+                ],
+            ],
+            'request' => ['method' => 'POST', 'url' => 'Specimen']
+        ];
+        return $uuid;
+    }
+
+    public function setObservationLab($idEncounter, $serviceRequestLabId, $dataLab, $dokter, $specimenLabId)
+    {
+        if ($idEncounter == null) throw new \Exception("Please insert encounter before set observation");
+        $uuid = Uuid::uuid4()->toString();
+        $id_kategori =  $dataLab->PemeriksaanLab->kategori_loinc_id;
+
+        $coding = [];
+        if ($id_kategori ==  1) { //jika mikrobiologi
+            $loinc = DB::table('loinc_lab_mikrobiologi_klinik')->where('Code', $dataLab->PemeriksaanLab->Code)->first();
+            $coding = [
+                [
+                    "system" => $loinc->Code_System,
+                    "code" => $loinc->Code,
+                    "display" => $loinc->Display
+                ]
+            ];
+        } else if ($id_kategori == 2) { //jika kimia klinik
+            $loinc = DB::table('loinc_lab_patologi_anatomi')->where('Kode', $dataLab->PemeriksaanLab->Code)->first();
+            $coding = [
+                [
+                    "system" => $loinc->Code_System,
+                    "code" => $loinc->Kode,
+                    "display" => $loinc->Nama_Pemeriksaan
+                ]
+            ];
+        } else if ($id_kategori == 3) { //jika kimia klinik
+            $loinc = DB::table('loinc_lab_patologi_klinik')->where('code', $dataLab->PemeriksaanLab->Code)->first();
+            $coding = [
+                [
+                    "system" => $loinc->code_system,
+                    "code" => $loinc->code,
+                    "display" => $loinc->display
+                ]
+            ];
+        } else {
+            return; // Jika kategori tidak dikenali, tidak melakukan apa-apa
+        }
+
+        $resource = [
+            "resourceType" => "Observation",
+            "basedOn" => [
+                [
+                    "reference" => "ServiceRequest/" . $serviceRequestLabId
+                ]
+            ],
+            "status" => "final",
+            "category" => [
+                [
+                    "coding" => [
+                        [
+                            "system" => "http://terminology.hl7.org/CodeSystem/observation-category",
+                            "code" => "laboratory",
+                            "display" => "Laboratory"
+                        ]
+                    ]
+                ]
+            ],
+            "code" => [
+                "coding" => $coding
+            ],
+            "performer" => [
+                [
+                    "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+                ]
+            ],
+            "subject" => [
+                "reference" => $this->patientReference,
+                "display" => $this->patientDisplay
+            ],
+            "encounter" => [
+                "reference" => $idEncounter
+            ],
+            "effectiveDateTime" => $this->formattedDate($dataLab->created_at),
+            "issued" => $this->formattedDate($dataLab->created_at),
+            "specimen" => [
+                "reference" => "Specimen/" . $specimenLabId
+            ]
+        ];
+
+
+        if ($dataLab->PemeriksaanLab->jenis_nilai != 'PAKET') {
+            if ($dataLab->PemeriksaanLab->jenis_nilai == 'NUMBER') {
+                $resource['valueQuantity'] = [
+                    "value" => (float)$dataLab->hasil,
+                    "unit" => $dataLab->PemeriksaanLab->SatusehatSatuan->unit,
+                    "system" => $dataLab->PemeriksaanLab->SatusehatSatuan->codesystem,
+                    "code" => $dataLab->PemeriksaanLab->SatusehatSatuan->code,
+                ];
+            } else if ($dataLab->PemeriksaanLab->jenis_nilai == 'STATEMENT') {
+                if ($dataLab->hasil == $dataLab->PemeriksaanLab->nilai_1) {
+                    $resource['valueCodeableConcept'] =   [
+                        "coding" => [
+                            [
+                                "system" => $dataLab->PemeriksaanLab->value_codeable_concept1_data->system,
+                                "code" => $dataLab->PemeriksaanLab->value_codeable_concept1_data->code,
+                                "display" => $dataLab->PemeriksaanLab->value_codeable_concept1_data->display
+                            ]
+                        ]
+                    ];
+                } else {
+                    $resource['valueCodeableConcept'] =   [
+                        "coding" => [
+                            [
+                                "system" => $dataLab->PemeriksaanLab->value_codeable_concept2_data->system,
+                                "code" => $dataLab->PemeriksaanLab->value_codeable_concept2_data->code,
+                                "display" => $dataLab->PemeriksaanLab->value_codeable_concept2_data->display
+                            ]
+                        ]
+                    ];
+                }
+            } else if ($dataLab->PemeriksaanLab->jenis_nilai == 'MULTIPLE') {
+            } else if ($dataLab->PemeriksaanLab->jenis_nilai == 'LIST MULTIPLE') {
+            }
+        }
+
+
+        $this->bundleEntry['title_payload'][] = 'observation Lab';
+        $this->bundleEntry['resource'][] = [
+            'fullUrl' => "urn:uuid:" . $uuid,
+            'resource' =>  $resource,
+            'request' => ['method' => 'POST', 'url' => 'Observation']
+        ];
+        return $uuid;
+    }
+
+    public function setDiagnosicReport($idEncounter, $observationLabId, $specimenLabId, $serviceRequestLabId, $dataLab, $dokter)
+    {
+        if ($idEncounter == null) throw new \Exception("Please insert encounter before set observation");
+        $uuid = Uuid::uuid4()->toString();
+
+        $id_kategori =  $dataLab->PemeriksaanLab->kategori_loinc_id;
+
+        $coding = [];
+        if ($id_kategori ==  1) { //jika mikrobiologi
+            $loinc = DB::table('loinc_lab_mikrobiologi_klinik')->where('Code', $dataLab->PemeriksaanLab->Code)->first();
+            $coding = [
+                [
+                    "system" => $loinc->Code_System,
+                    "code" => $loinc->Code,
+                    "display" => $loinc->Display
+                ]
+            ];
+        } else if ($id_kategori == 2) { //jika kimia klinik
+            $loinc = DB::table('loinc_lab_patologi_anatomi')->where('Kode', $dataLab->PemeriksaanLab->Code)->first();
+            $coding = [
+                [
+                    "system" => $loinc->Code_System,
+                    "code" => $loinc->Kode,
+                    "display" => $loinc->Nama_Pemeriksaan
+                ]
+            ];
+        } else if ($id_kategori == 3) { //jika kimia klinik
+            $loinc = DB::table('loinc_lab_patologi_klinik')->where('code', $dataLab->PemeriksaanLab->Code)->first();
+            $coding = [
+                [
+                    "system" => $loinc->code_system,
+                    "code" => $loinc->code,
+                    "display" => $loinc->display
+                ]
+            ];
+        } else {
+            return; // Jika kategori tidak dikenali, tidak melakukan apa-apa
+        }
+
+        $pemeriksaanLab = $dataLab->PemeriksaanLab;
+        $this->bundleEntry['title_payload'][] = 'diagnostic report';
+        $this->bundleEntry['resource'][] = [
+            'fullUrl' => "urn:uuid:" . $uuid,
+            'resource' =>  [
+                "resourceType" => "DiagnosticReport",
+                "identifier" => [
+                    "system" => "http://sys-ids.kemkes.go.id/diagnostic/" . $this->organizationID . "/lab",
+                    "use" => "official",
+                    "value" => (string) $dataLab->id
+                ],
+                "status" => "final",
+                "category" => [
+                    [
+                        "coding" => [
+                            [
+                                "system" => $pemeriksaanLab->DiagnosticReportCategory->system,
+                                "code" => $pemeriksaanLab->DiagnosticReportCategory->code,
+                                "display" => $pemeriksaanLab->DiagnosticReportCategory->display
+                            ]
+                        ]
+                    ]
+                ],
+                "code" => [
+                    "coding" => $coding
+                ],
+                "subject" => [
+                    "reference" => $this->patientReference,
+                    "display" => $this->patientDisplay
+                ],
+                "encounter" => [
+                    "reference" => $idEncounter,
+                    "display" => "Permintaan Pemeriksaan Lab " . $this->patientDisplay . " pada tanggal " . $dataLab->created_at
+                ],
+                "issued" => $this->formattedDate($dataLab->jam_selesai),
+                "performer" => [
+                    [
+                        "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+                        "display" => $dokter->nama_lengkap
+                    ],
+                    [
+                        'reference' => 'Organization/' . $this->organizationID
+                    ]
+                ],
+                "result" => [
+                    [
+                        "reference" => "Observation/" . $observationLabId
+                    ]
+                ],
+                "specimen" => [
+                    [
+                        "reference" => "Specimen/" . $specimenLabId
+                    ]
+                ],
+                "basedOn" => [
+                    [
+                        "reference" => "ServiceRequest/" . $serviceRequestLabId
+                    ]
+                ],
+                "conclusionCode" => [
+                    [
+                        "coding" => [
+                            [
+                                "system" => $dataLab->DiagnosticReportConclusion->system,
+                                "code" => $dataLab->DiagnosticReportConclusion->code,
+                                "display" => $dataLab->DiagnosticReportConclusion->display
+                            ]
+                        ]
+                    ]
+                ],
+            ],
+            'request' => ['method' => 'POST', 'url' => 'DiagnosticReport']
+        ];
+
+        return $uuid;
+    }
+
     public function setProcedure($idEncounter, $dokter, $tindakan)
     {
         $uuid = Uuid::uuid4()->toString();
         if (empty($idEncounter)) throw new \Exception("Please insert encounter before set condition");
 
-        $this->bundleEntry[] = [
+        $this->bundleEntry['title_payload'][] = 'tindakan';
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $uuid,
             "resource" => [
                 "resourceType" => "Procedure",
@@ -337,12 +699,14 @@ class Bundle
         ];
     }
 
+
     public function setCondition($idEncounter, $penyakit, $tanggal)
     {
         $uuid = Uuid::uuid4()->toString();
         if (empty($idEncounter)) throw new \Exception("Please insert encounter before set condition");
 
-        $this->bundleEntry[] = [
+        $this->bundleEntry['title_payload'][] = 'set condition' . $penyakit->nama;
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $uuid,
             "resource" => [
                 'resourceType' => 'Condition',
@@ -387,13 +751,14 @@ class Bundle
             "request" => ["method" => "POST", "url" => "Condition"]
         ];
 
-        foreach ($this->bundleEntry as $key => $value) {
+
+        foreach ($this->bundleEntry['resource'] as $key => $value) {
             if ($value['resource']['resourceType'] == 'Encounter') {
                 if (!isset($value['resource']['diagnosis'])) {
-                    $this->bundleEntry[$key]['resource']['diagnosis'] = [];
+                    $this->bundleEntry['resource'][$key]['resource']['diagnosis'] = [];
                 }
 
-                $this->bundleEntry[$key]['resource']['diagnosis'][] = [
+                $this->bundleEntry['resource'][$key]['resource']['diagnosis'][] = [
                     "condition" => [
                         "reference" => "urn:uuid:" . $uuid,
                         "display" => $penyakit->nama
@@ -417,10 +782,16 @@ class Bundle
     public function setMedicationPrescription($idEncounter, $dokter, $resepObat)
     {
         $uuidMedication = Uuid::uuid4();
+        $this->medicationUUID = $uuidMedication;
         $uuidMedicationService = Uuid::uuid4();
-        if (empty($idEncounter)) throw new \Exception("Please insert encounter before set condition");
+        $uuidMedicationDispense = Uuid::uuid4();
 
-        $this->bundleEntry[] = [
+        if (empty($idEncounter)) throw new \Exception("Please insert encounter before set condition");
+        $dataIngredients = Satusehat_kfa::where('kode_kfa_pa', $resepObat->obat->kode_kfa)->get();
+        $ingredient = [];
+
+        $this->bundleEntry['title_payload'][] = 'medication';
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $uuidMedication,
             "resource" => [
                 "resourceType" => "Medication",
@@ -433,15 +804,15 @@ class Bundle
                     [
                         "system" => "http://sys-ids.kemkes.go.id/medication/" . $this->organizationID,
                         "use" => "official",
-                        "value" => (string) $resepObat['resep']->id
+                        "value" => (string) $resepObat->id . ''
                     ]
                 ],
                 "code" => [
                     "coding" => [
                         [
                             "system" => "http://sys-ids.kemkes.go.id/kfa",
-                            "code" => $resepObat['obat']['kode_kfa'],
-                            "display" => $resepObat['obat']['nama_kfa'],
+                            "code" => $resepObat->obat->kode_kfa,
+                            "display" => $resepObat->obat->satusehat_kfa->display_name,
                         ]
                     ]
                 ],
@@ -449,12 +820,40 @@ class Bundle
                 "form" => [
                     "coding" => [
                         [
-                            "system" => $resepObat['medication']['codesystem'],
-                            "code" => $resepObat['medication']['code'],
-                            "display" => $resepObat['medication']['display'],
+                            "system" => $resepObat->obat->satusehat_medication_form->system,
+                            "code" => $resepObat->obat->satusehat_medication_form->code,
+                            "display" => $resepObat->obat->satusehat_medication_form->display,
                         ]
                     ]
                 ],
+
+                "ingredient" => [
+                    [
+                        "itemCodeableConcept" => [
+                            "coding" => [
+                                [
+                                    "system" => "http://sys-ids.kemkes.go.id/kfa",
+                                    "code" => $resepObat->obat->satusehat_kfa->zat_aktif_kode_kfa_pa,
+                                    "display" => $resepObat->obat->satusehat_kfa->product_template_display_name
+                                ]
+                            ]
+                        ],
+                        "isActive" => true,
+                        "strength" => [
+                            "numerator" => [
+                                "value" => (float)$resepObat->obat->satusehat_kfa->numerator,
+                                "system" => $resepObat->obat->satusehat_kfa->CodeSystem,
+                                "code" => $resepObat->obat->satusehat_kfa->satuan
+                            ],
+                            "denominator" => [
+                                "value" => (float)$resepObat->obat->satusehat_kfa->Denominator,
+                                "system" => $resepObat->obat->satusehat_kfa->CodeSystem_disesuaikan,
+                                "code" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan
+                            ]
+                        ]
+                    ]
+                ],
+
                 "extension" => [
                     [
                         "url" => "https://fhir.kemkes.go.id/r4/StructureDefinition/MedicationType",
@@ -472,7 +871,9 @@ class Bundle
             ],
             "request" => ["method" => "POST", "url" => "Medication"]
         ];
-        $this->bundleEntry[] = [
+
+        $this->bundleEntry['title_payload'][] = 'medication request';
+        $this->bundleEntry['resource'][] = [
             "fullUrl" => "urn:uuid:" . $uuidMedicationService,
             "resource" => [
                 "resourceType" => "MedicationRequest",
@@ -480,18 +881,18 @@ class Bundle
                     [
                         "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
                         "use" => "official",
-                        "value" => (string) $resepObat['resep']->id,
+                        "value" => (string) $resepObat->id . '',
                     ],
                 ],
                 "status" => "completed",
-                "intent" => $resepObat['resep']->intent ?? "order",
+                "intent" => $resepObat->intent ?? "order",
                 "category" => [
                     [
                         "coding" => [
                             [
                                 "system" => "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
-                                "code" => "discharge",
-                                "display" => "Discharge"
+                                "code" => "outpatient",
+                                "display" => "Outpatient"
                             ]
                         ]
                     ]
@@ -500,7 +901,7 @@ class Bundle
                 "reportedBoolean" => false,
                 "medicationReference" => [
                     "reference" => "urn:uuid:" . $uuidMedication,
-                    "display" => $resepObat['obat']['nama_kfa']
+                    "display" => $resepObat->obat->satusehat_kfa->display_name
                 ],
                 "subject" => [
                     "reference" => $this->patientReference,
@@ -510,7 +911,7 @@ class Bundle
                     "reference" => $idEncounter,
                 ],
                 // FIX ME
-                "authoredOn" => $this->formattedDate($resepObat['resep']->created),
+                "authoredOn" => $this->formattedDate($resepObat->created),
                 "requester" => [
                     "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
                     "display" => $dokter->nama_lengkap,
@@ -519,23 +920,23 @@ class Bundle
                     [
                         "additionalInstruction" => [
                             [
-                                "text" => $resepObat['resep']->catatan,
+                                "text" => $resepObat->catatan,
                             ]
                         ],
-                        "patientInstruction" => $resepObat['resep']->catatan,
+                        "patientInstruction" => $resepObat->catatan,
                         "timing" => [
                             "repeat" => [
-                                "frequency" => $resepObat['resep']->waktu,
-                                "period" => $resepObat['resep']->hari,
-                                "periodUnit" => $resepObat['resep']->signa_period,
+                                "frequency" => $resepObat->signa1,
+                                "period" => $resepObat->signa2,
+                                "periodUnit" => $resepObat->signa_period,
                             ]
                         ],
                         "route" => [
                             "coding" => [
                                 [
-                                    "system" => $resepObat['dosis']['codesystem'],
-                                    "code" => $resepObat['route']['code'],
-                                    "display" => $resepObat['route']['display'],
+                                    "system" => $resepObat->route->codesystem,
+                                    "code" => $resepObat->route->code,
+                                    "display" => $resepObat->route->display,
                                 ]
                             ]
                         ],
@@ -551,45 +952,145 @@ class Bundle
                                     ]
                                 ],
                                 "doseQuantity" => [
-                                    "value" => $resepObat['resep']->waktu,
-                                    "unit" => $resepObat['dosis']['nama'],
-                                    "system" => $resepObat['dosis']['codesystem'],
-                                    "code" => $resepObat['dosis']['code'],
+                                    "value" => $resepObat->signa1,
+                                    "unit" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan,
+                                    "system" => $resepObat->obat->satusehat_kfa->CodeSystem_disesuaikan,
+                                    "code" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan
                                 ]
                             ]
                         ]
                     ]
                 ],
                 "dispenseRequest" => [
+                    "quantity" => [
+                        "value" => $resepObat->total,
+                        "unit" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan,
+                        "system" => $resepObat->obat->satusehat_kfa->CodeSystem_disesuaikan,
+                        "code" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan
+                    ],
                     "performer" => [
                         'reference' => 'Organization/' . $this->organizationID
-                    ],
-                    "quantity" => [
-                        "value" => $resepObat['resep']->total,
-                        "unit" => $resepObat['dosis']['nama'],
-                        "system" => $resepObat['dosis']['codesystem'],
-                        "code" => $resepObat['dosis']['code'],
-                    ],
+                    ]
                 ]
+
             ],
             "request" => [
                 "method" => "POST",
                 "url" => "MedicationRequest"
             ]
         ];
+
+        $this->bundleEntry['title_payload'][] = 'medicaton dispense resep';
+        $this->bundleEntry['resource'][] = [
+            "fullUrl" => "urn:uuid:" . $uuidMedicationDispense,
+            "resource" => [
+                "resourceType" => "MedicationDispense",
+                "identifier" => [
+                    [
+                        "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
+                        "use" => "official",
+                        "value" => (string) $resepObat->id . ''
+                    ],
+                    [
+                        "system" => "http://sys-ids.kemkes.go.id/prescription-item/" . $this->organizationID,
+                        "use" => "official",
+                        "value" => (string) $resepObat->id . '' . '-1'
+                    ],
+                ],
+                "status" => "completed",
+                "category" => [
+                    "coding" => [
+                        [
+                            "system" => "http://terminology.hl7.org/fhir/CodeSystem/medicationdispense-category",
+                            "code" => "outpatient",
+                            "display" => "Outpatient"
+                        ]
+                    ]
+                ],
+                "medicationReference" => [
+                    "reference" => "Medication/" . $uuidMedication,
+                    "display" => $resepObat->obat->satusehat_kfa->display_name,
+                ],
+                "subject" => [
+                    "reference" => $this->patientReference,
+                    "display" => $this->patientDisplay
+                ],
+                "context" => [
+                    "reference" => $idEncounter
+                ],
+                "performer" => [
+                    [
+                        "actor" => [
+                            "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+                            "display" => $dokter->nama_lengkap,
+                        ]
+                    ]
+                ],
+                "location" => $this->locationRoom,
+                "authorizingPrescription" => [
+                    [
+                        "reference" => "MedicationRequest/" . $uuidMedicationService
+                    ]
+                ],
+                "quantity" => [
+                    "value" => $resepObat->total,
+                    "unit" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan,
+                    "system" => $resepObat->obat->satusehat_kfa->CodeSystem_disesuaikan,
+                    "code" => $resepObat->obat->satusehat_kfa->satuan_disesuaikan
+                ],
+                "daysSupply" => [
+                    "value" => 30,
+                    "unit" => "Day",
+                    "system" => "http://unitsofmeasure.org",
+                    "code" => "d"
+                ],
+                "whenPrepared" => $this->formattedDate($resepObat->created_at),
+                "whenHandedOver" => $this->formattedDate($resepObat->created_at),
+                "dosageInstruction" => [
+                    [
+                        "sequence" => 1,
+                        "text" => $resepObat->catatan,
+                        "timing" => [
+                            "repeat" => [
+                                "frequency" => $resepObat->signa1,
+                                "period" => $resepObat->signa2,
+                                "periodUnit" => $resepObat->signa_period,
+                            ]
+                        ],
+                        "doseAndRate" => [
+                            [
+                                "type" => [
+                                    "coding" => [
+                                        [
+                                            "system" => "http://terminology.hl7.org/CodeSystem/dose-rate-type",
+                                            "code" => "ordered",
+                                            "display" => "Ordered"
+                                        ]
+                                    ]
+                                ],
+                                "doseQuantity" => [
+                                    "value" => $resepObat->signa1,
+                                    "unit" => $resepObat->obat->satusehat_kfa->satuan,
+                                    "system" => $resepObat->obat->satusehat_kfa->CodeSystem,
+                                    "code" => $resepObat->obat->satusehat_kfa->satuan
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            "request" => [
+                "method" => "POST",
+                "url" => "MedicationDispense"
+            ]
+        ];
     }
 
-    public function setMedicationPrescriptionMixed($idEncounter, $dokter, $data)
+    public function setMedicationPrescriptionMixed($idEncounter, $dokter, $racik)
     {
-
-        $obat = $data['obat'];
-        $racik = $data['racik'];
-        $medication = $data['medication'];
-        $route = $data['route'];
-        $satuan = $data['dosis'];
-
         $uuidMedication = Uuid::uuid4();
         $uuidMedicationService = Uuid::uuid4();
+        $uuidMedicationDispense = Uuid::uuid4();
         if (empty($idEncounter)) throw new \Exception("Please insert encounter before set condition");
 
         $ingridients = [];
@@ -598,182 +1099,292 @@ class Bundle
             [
                 "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
                 "use" => "official",
-                "value" => (string) $racik->id,
+                "value" => (string) $racik->id . '',
             ]
         ];
+
         foreach ($racik->obat as $racikObat) {
-            $dataObatRacik = $this->getDataObat($racikObat->id_obat);
-            $obatDetail =  count($dataObatRacik['obat']) > 0;
-            $medicationDetail  = count($dataObatRacik['medication']) > 0;
-            $satuanDetail = count($dataObatRacik['satuan']) > 0;
-
-            $ingridients[] = [
-                "itemCodeableConcept" => [
-                    "coding" => [
-                        [
-                            "system" => "http://sys-ids.kemkes.go.id/kfa",
-                            "code" => $obatDetail == true ? $dataObatRacik['obat']['kode_kfa'] : '',
-                            "display" => $obatDetail == true ? $dataObatRacik['obat']['nama_kfa'] : '',
-                        ]
-                    ]
-                ],
-                "isActive" => true,
-                "strength" => [
-                    "numerator" => [
-                        "value" => $racikObat->dosis,
-                        "system" => $satuanDetail == true ? $dataObatRacik['satuan']['codesystem'] : '',
-                        "code" => $satuanDetail == true ? $dataObatRacik['satuan']['code'] : '',
-                    ],
-                    "denominator" => [
-                        "value" => $racik->bungkus,
-                        "system" => $medicationDetail == true ? $dataObatRacik['medication']['codesystem'] : '',
-                        "code" => $medicationDetail == true ? $dataObatRacik['medication']['code'] : '',
-                    ]
-                ]
-            ];
-
-            $medicationRequestIdentifier[] = [
-                "system" => "http://sys-ids.kemkes.go.id/prescription-item/" . $this->organizationID,
-                "use" => "official",
-                "value" => (string) $racikObat->id,
-            ];
-            $ingridientsNames[] = $dataObatRacik['obat']['nama_kfa'];
-        }
-
-        $this->bundleEntry[] = [
-            "fullUrl" => "urn:uuid:" . $uuidMedication,
-            "resource" => [
-                "resourceType" => "Medication",
-                "meta" => [
-                    "profile" => [
-                        "https://fhir.kemkes.go.id/r4/StructureDefinition/Medication"
-                    ]
-                ],
-                "identifier" => [
-                    [
-                        "system" => "http://sys-ids.kemkes.go.id/medication/" . $this->organizationID,
-                        "use" => "official",
-                        "value" => (string) $racik->id
-                    ]
-                ],
-                "status" => "active",
-                "form" => [
-                    "coding" => [
-                        [
-                            "system" => $medication['codesystem'],
-                            "code" => $medication['code'],
-                            "display" => $medication['display'],
-                        ]
-                    ]
-                ],
-                "ingredient" => $ingridients,
-                "extension" => [
-                    [
-                        "url" => "https://fhir.kemkes.go.id/r4/StructureDefinition/MedicationType",
-                        "valueCodeableConcept" => [
-                            "coding" => [
-                                [
-                                    "system" => "http://terminology.kemkes.go.id/CodeSystem/medication-type",
-                                    "code" => "SD",
-                                    "display" => "Gives of such doses",
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ],
-            "request" => ["method" => "POST", "url" => "Medication"]
-        ];
-
-        $this->bundleEntry[] = [
-            "fullUrl" => "urn:uuid:" . $uuidMedicationService,
-            "resource" => [
-                "resourceType" => "MedicationRequest",
-                "identifier" => $medicationRequestIdentifier,
-                "status" => "completed",
-                "intent" => $racik->intent ?? "order",
-                "category" => [
-                    [
+            if ($racikObat->obat->satusehat_kfa) {
+                $ingridients[] = [
+                    "itemCodeableConcept" => [
                         "coding" => [
                             [
-                                "system" => "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
-                                "code" => "discharge",
-                                "display" => "Discharge"
+                                "system" => "http://sys-ids.kemkes.go.id/kfa",
+                                "code" => $racikObat->obat->satusehat_kfa->kode_kfa_pa,
+                                "display" => $racikObat->obat->satusehat_kfa->display_name,
+                            ]
+                        ]
+                    ],
+                    "isActive" => true,
+                    "strength" => [
+                        "numerator" => [
+                            "value" => (float)$racikObat->obat->satusehat_kfa->numerator,
+                            "system" => $racikObat->obat->satusehat_kfa->CodeSystem,
+                            "code" => $racikObat->obat->satusehat_kfa->satuan,
+                        ],
+                        "denominator" => [
+                            "value" => (float)$racikObat->obat->satusehat_kfa->Denominator,
+                            "system" => $racikObat->obat->satusehat_kfa->CodeSystem_disesuaikan,
+                            "code" => $racikObat->obat->satusehat_kfa->satuan_disesuaikan,
+                        ]
+                    ]
+                ];
+                $medicationRequestIdentifier[] = [
+                    "system" => "http://sys-ids.kemkes.go.id/prescription-item/" . $this->organizationID,
+                    "use" => "official",
+                    "value" => (string) $racikObat->id,
+                ];
+                $ingridientsNames[] = $racikObat->obat->satusehat_kfa->display_name;
+            }
+        }
+
+        if (count($ingridients) != 0) {
+            $this->bundleEntry['title_payload'][] = 'medication_mixed';
+            $this->bundleEntry['resource'][] = [
+                "fullUrl" => "urn:uuid:" . $uuidMedication,
+                "resource" => [
+                    "resourceType" => "Medication",
+                    "meta" => [
+                        "profile" => [
+                            "https://fhir.kemkes.go.id/r4/StructureDefinition/Medication"
+                        ]
+                    ],
+                    "identifier" => [
+                        [
+                            "system" => "http://sys-ids.kemkes.go.id/medication/" . $this->organizationID,
+                            "use" => "official",
+                            "value" => (string) $racik->id . ''
+                        ]
+                    ],
+                    "status" => "active",
+                    "form" => [
+                        "coding" => [
+                            [
+                                "system" => $racik->satusehat_medication_form->system,
+                                "code" => $racik->satusehat_medication_form->code,
+                                "display" => $racik->satusehat_medication_form->display,
+                            ]
+                        ]
+                    ],
+                    "ingredient" => $ingridients,
+                    "extension" => [
+                        [
+                            "url" => "https://fhir.kemkes.go.id/r4/StructureDefinition/MedicationType",
+                            "valueCodeableConcept" => [
+                                "coding" => [
+                                    [
+                                        "system" => "http://terminology.kemkes.go.id/CodeSystem/medication-type",
+                                        "code" => "SD",
+                                        "display" => "Gives of such doses",
+                                    ]
+                                ]
                             ]
                         ]
                     ]
                 ],
-                "priority" => "routine",
-                "reportedBoolean" => false,
-                "medicationReference" => [
-                    "reference" => "urn:uuid:" . $uuidMedication,
-                    "display" => implode(" / ", $ingridientsNames),
-                ],
-                "subject" => [
-                    "reference" => $this->patientReference,
-                    "display" => $this->patientDisplay,
-                ],
-                "encounter" => [
-                    "reference" => $idEncounter,
-                ],
-                "authoredOn" => $this->formattedDate($racik->created),
-                "requester" => [
-                    "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
-                    "display" => $dokter->nama_lengkap,
-                ],
-                "dosageInstruction" => [
-                    [
-                        "additionalInstruction" => [
-                            [
-                                "text" => $racik->catatan,
-                            ]
-                        ],
-                        "patientInstruction" => $racik->catatan,
-                        "timing" => [
-                            "repeat" => [
-                                "frequency" => $racik->waktu,
-                                "period" => 1,
-                                "periodUnit" => $racik->signa_period,
-                            ]
-                        ],
-                        "route" => [
+                "request" => ["method" => "POST", "url" => "Medication"]
+            ];
+
+
+            $this->bundleEntry['title_payload'][] = 'medication request mixed';
+            $this->bundleEntry['resource'][] = [
+                "fullUrl" => "urn:uuid:" . $uuidMedicationService,
+                "resource" => [
+                    "resourceType" => "MedicationRequest",
+                    "identifier" => $medicationRequestIdentifier,
+                    "status" => "completed",
+                    "intent" => $racik->intent ?? "order",
+                    "category" => [
+                        [
                             "coding" => [
                                 [
-                                    "system" => $route['codesystem'],
-                                    "code" => $route['code'],
-                                    "display" => $route['display'],
-                                ]
-                            ]
-                        ],
-                        "doseAndRate" => [
-                            [
-                                "doseQuantity" => [
-                                    "value" => $racik->waktu,
-                                    "unit" => $satuan['nama'],
-                                    "system" => $satuan['codesystem'],
-                                    "code" => $satuan['code'],
+                                    "system" => "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+                                    "code" => "discharge",
+                                    "display" => "Discharge"
                                 ]
                             ]
                         ]
+                    ],
+                    "priority" => "routine",
+                    "reportedBoolean" => false,
+                    "medicationReference" => [
+                        "reference" => "urn:uuid:" . $this->medicationUUID,
+                        "display" => implode(" / ", $ingridientsNames),
+                    ],
+                    "subject" => [
+                        "reference" => $this->patientReference,
+                        "display" => $this->patientDisplay,
+                    ],
+                    "encounter" => [
+                        "reference" => $idEncounter,
+                    ],
+                    "authoredOn" => $this->formattedDate($racik->created),
+                    "requester" => [
+                        "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+                        "display" => $dokter->nama_lengkap,
+                    ],
+                    "dosageInstruction" => [
+                        [
+                            "additionalInstruction" => [
+                                [
+                                    "text" => $racik->catatan,
+                                ]
+                            ],
+                            "patientInstruction" => $racik->catatan,
+                            "timing" => [
+                                "repeat" => [
+                                    "frequency" => $racik->signa1,
+                                    "period" => $racik->signa2,
+                                    "periodUnit" => $racik->signa_period,
+                                ]
+                            ],
+                            "route" => [
+                                "coding" => [
+                                    [
+                                        "system" => $racik->route->codesystem,
+                                        "code" => $racik->route->code,
+                                        "display" => $racik->route->display,
+                                    ]
+                                ]
+                            ],
+                            "doseAndRate" => [
+                                [
+                                    "doseQuantity" => [
+                                        "value" => (float)$racik->signa1,
+                                        "unit" => $racik->bentuk_sediaan->display,
+                                        "system" => $racik->bentuk_sediaan->system,
+                                        "code" => $racik->bentuk_sediaan->code,
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ],
+                    "dispenseRequest" => [
+                        "performer" => [
+                            'reference' => 'Organization/' . $this->organizationID
+                        ],
+                        "quantity" => [
+                            "value" => (float)$racik->signa1,
+                            "unit" => $racik->bentuk_sediaan->display,
+                            "system" => $racik->bentuk_sediaan->system,
+                            "code" => $racik->bentuk_sediaan->code,
+                        ],
                     ]
                 ],
-                "dispenseRequest" => [
+                "request" => [
+                    "method" => "POST",
+                    "url" => "MedicationRequest"
+                ]
+            ];
+
+            // dd($racik->satusehat_medication_form);
+
+
+            $this->bundleEntry['title_payload'][] = 'medicaton dispense racik';
+            $this->bundleEntry['resource'][] = [
+                "fullUrl" => "urn:uuid:" . $uuidMedicationDispense,
+                "resource" => [
+                    "resourceType" => "MedicationDispense",
+                    "identifier" => [
+                        [
+                            "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
+                            "use" => "official",
+                            "value" => (string) $racik->id . ''
+                        ],
+                        [
+                            "system" => "http://sys-ids.kemkes.go.id/prescription-item/" . $this->organizationID,
+                            "use" => "official",
+                            "value" => (string) $racik->id . '' . '-1'
+                        ],
+                    ],
+                    "status" => "completed",
+                    "category" => [
+                        "coding" => [
+                            [
+                                "system" => "http://terminology.hl7.org/fhir/CodeSystem/medicationdispense-category",
+                                "code" => "outpatient",
+                                "display" => "Outpatient"
+                            ]
+                        ]
+                    ],
+                    "medicationReference" => [
+                        "reference" => "Medication/" . $uuidMedication,
+                        "display" => '-',
+                    ],
+                    "subject" => [
+                        "reference" => $this->patientReference,
+                        "display" => $this->patientDisplay
+                    ],
+                    "context" => [
+                        "reference" => $idEncounter
+                    ],
                     "performer" => [
-                        'reference' => 'Organization/' . $this->organizationID
+                        [
+                            "actor" => [
+                                "reference" => "Practitioner/" . $dokter->id_dokter_satusehat,
+                                "display" => $dokter->nama_lengkap,
+                            ]
+                        ]
+                    ],
+                    "location" => $this->locationRoom,
+                    "authorizingPrescription" => [
+                        [
+                            "reference" => "MedicationRequest/" . $uuidMedicationService
+                        ]
                     ],
                     "quantity" => [
                         "value" => $racik->bungkus,
-                        "unit" => $satuan['nama'],
-                        "system" => $satuan['codesystem'],
-                        "code" => $satuan['code'],
+                        "unit" => $racik->bentuk_sediaan->code,
+                        "system" => $racik->bentuk_sediaan->system,
+                        "code" => $racik->bentuk_sediaan->code
                     ],
+                    "daysSupply" => [
+                        "value" => 30,
+                        "unit" => "Day",
+                        "system" => "http://unitsofmeasure.org",
+                        "code" => "d"
+                    ],
+                    "whenPrepared" => $this->formattedDate($racik->created),
+                    "whenHandedOver" => $this->formattedDate($racik->created),
+                    "dosageInstruction" => [
+                        [
+                            "sequence" => 1,
+                            "text" => $racik->catatan,
+                            "timing" => [
+                                "repeat" => [
+                                    "frequency" => $racik->signa1,
+                                    "period" => $racik->signa2,
+                                    "periodUnit" => $racik->signa_period,
+                                ]
+                            ],
+                            "doseAndRate" => [
+                                [
+                                    "type" => [
+                                        "coding" => [
+                                            [
+                                                "system" => "http://terminology.hl7.org/CodeSystem/dose-rate-type",
+                                                "code" => "ordered",
+                                                "display" => "Ordered"
+                                            ]
+                                        ]
+                                    ],
+                                    "doseQuantity" => [
+                                        "value" => $racik->signa1,
+                                        "unit" => $racik->bentuk_sediaan->display,
+                                        "system" => $racik->bentuk_sediaan->system,
+                                        "code" => $racik->bentuk_sediaan->code
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                "request" => [
+                    "method" => "POST",
+                    "url" => "MedicationDispense"
                 ]
-            ],
-            "request" => [
-                "method" => "POST",
-                "url" => "MedicationRequest"
-            ]
-        ];
+            ];
+        }
     }
 
     public function getDataObat($id_obat = "")
@@ -804,7 +1415,7 @@ class Bundle
         $body = [
             "resourceType" => "Bundle",
             "type" => "transaction",
-            "entry" => $this->bundleEntry
+            "entry" => $this->bundleEntry['resource']
         ];
 
         if (empty($this->bundleEntry)) {
@@ -828,6 +1439,8 @@ class Bundle
             'Content-Type' => 'application/json',
             'Authorization' => 'Bearer ' . $access_token,
         ];
+
+        Log::info("body", ['body' => $body]);
 
         $url = $oAuthClient->base_url;
         $request = new Request('POST', $url, $headers, collect($body));

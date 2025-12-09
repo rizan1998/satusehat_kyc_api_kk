@@ -22,6 +22,7 @@ use PhpParser\Node\Stmt\Continue_;
 use App\Models\AntrianMasukRuangan;
 use App\Models\PemeriksaanTindakan;
 use Illuminate\Support\Facades\Log;
+use App\Models\PemeriksaanTambahanLab;
 use App\Models\View\VPemeriksaanDiagnosa;
 
 class SatuSehatController extends Controller
@@ -98,16 +99,35 @@ class SatuSehatController extends Controller
                     $satusehat_phases->observation_pemeriksaan_fisik = true;
                 }
 
-                // // Fix me: LAB / Rujuk (Need to ask teams to make sure the existing flows)
-                // if (empty($satusehat_phases->service_request)) {
-                // }
 
-                // if (empty($satusehat_phases->specimen)) {
-                // }
 
-                // if (empty($satusehat_phases->observation_hasil_pemeriksaan_penunjang)) {
-                // }
-                // // END LAB
+
+                if (empty($satusehat_phases->service_request)) {
+                    $pemeriskaanLab = PemeriksaanTambahanLab::with(['Petugas', 'PemeriksaanLab', 'PemeriksaanLab.DiagnosticReportCategory', 'DiagnosticReportConclusion',  'PemeriksaanLab.SatusehatSatuan', 'PemeriksaanLab.value_codeable_concept1_data', 'PemeriksaanLab.value_codeable_concept2_data', 'SampelLab', 'SampelLab.Snomed'])->where('id_kunjungan', $kunjungan->id)->get();
+                    foreach ($pemeriskaanLab as $lab) {
+                        if ($lab->jenis_nilai == "PAKET") {
+                            // $rincianPaket =  RincianPaketLab::with('PemeriksaanLab')->where('id_paket', $lab->id)->get();
+                            // foreach ($rincianPaket as $rincian) {
+                            //     $serviceRequestLabId  =  $bundle->setServiceRequest($prefixEncounter . $satusehat_phases->id_encounter, $lab->id . "/" . $rincian->id,  $rincian, $dokter);
+
+                            //     $specimenLabId = $bundle->setSpecimen($prefixEncounter . $satusehat_phases->id_encounter, $serviceRequestLabId, $lab->id, $rincian, $dokter);
+
+                            //     $bundle->setDiagnosicReport($prefixEncounter . $satusehat_phases->id_encounter, $lab->id, $rincian, $specimenLabId, $lab->id, $rincian);
+                            // }
+                        } else {
+                            $serviceRequestLabId  =  $bundle->setServiceRequest($prefixEncounter . $satusehat_phases->id_encounter, $lab->id, $lab, $dokter);
+                            Log::info("lab_id: " . $lab->id);
+                            $specimenLabId = $bundle->setSpecimen($prefixEncounter . $satusehat_phases->id_encounter, $serviceRequestLabId, $lab->id, $lab);
+
+                            $observationLab = $bundle->setObservationLab($prefixEncounter . $satusehat_phases->id_encounter, $serviceRequestLabId,  $lab, $dokter, $specimenLabId);
+
+                            $bundle->setDiagnosicReport($prefixEncounter . $satusehat_phases->id_encounter, $observationLab, $specimenLabId, $serviceRequestLabId, $lab, $dokter);
+                        }
+                    }
+
+                    $satusehat_phases->service_request = 1;
+                }
+                //  END LAB
 
                 $pemeriksaanTindakan = PemeriksaanTindakan::with(['icd9'])->where('id_kunjungan', $kunjungan->id)->where('id_icd9', '!=', 0)->get();
                 $pemeriksaanTindakanIds = [];
@@ -129,42 +149,43 @@ class SatuSehatController extends Controller
                     $satusehat_phases->condition_diagnosis = true;
                 }
 
-                // $resepObat = ResepObat::with('obat', 'obat.satuan', 'medication_form', 'route', 'satuan_dosis')->where('id_kunjungan', $kunjungan->id)->get();
 
-                // $resepObat = ResepObat::where('id_kunjungan', $kunjungan->id)->get();
-                // $racikObat = Racik::with('obat')->where('id_kunjungan', $kunjungan->id)->get();
-                // $resepObatIds = [];
-                // $racikObatIds = [];
-                // if (empty($satusehat_phases->medication)) {
-                //     foreach ($resepObat as $resep) {
-                //         // var_dump($resep);
-                //         // die;
-                //         $dataObat = $this->getDataObat($resep->id_obat, $resep->medication_form_code, $resep->satusehat_route_code, $resep->id_satuan_dosis);
-                //         // return json_encode($dataObat);
-                //         $dataObat['resep'] = $resep;
+                $resepObat = ResepObat::with('obat', 'obat.satusehat_kfa', 'obat.satusehat_medication_form', 'obat.satuan', 'route', 'satuan_dosis')->where('id_kunjungan', $kunjungan->id)->where('status', 'SELESAI')->get();
+                $racikObat = Racik::with('obat', 'obat.obat', 'obat.obat.satuan', 'obat.obat.satusehat_kfa',  'satuan_obat', 'route', 'satuan_dosis', 'bentuk_sediaan', 'satusehat_medication_form')->where('id_kunjungan', $kunjungan->id)->where('status', 'SELESAI')->where('ket', '!=', 'DELETE')->get();
 
 
-                //         if (count($dataObat['obat']) > 0 && count($dataObat['medication']) > 0 && count($dataObat['route']) > 0 && count($dataObat['dosis']) > 0) {
-                //             $resepObatIds[] = $resep->id;
-                //             $bundle->setMedicationPrescription($prefixEncounter . $satusehat_phases->id_encounter, $dokter, $dataObat);
-                //         }
-                //     }
+                $resepObatIds = [];
+                $racikObatIds = [];
+                if (empty($satusehat_phases->medication)) {
+                    foreach ($resepObat as $resep) {
+
+                        if (empty($resep->obat->satusehat_medication_form) || empty($resep->obat->satusehat_kfa) || empty($resep->signa1) || empty($resep->signa2) || empty($resep->signa_period) || empty($resep->total)) continue;
+                        $resepObatIds[] = $resep->id;
+                        $bundle->setMedicationPrescription($prefixEncounter . $satusehat_phases->id_encounter, $dokter, $resep);
+                    }
 
 
-                //     foreach ($racikObat as $racik) {
-                //         $dataObatRacik = $this->getDataObat("", $racik->medication_form_code, $racik->satusehat_route_code, $racik->id_satuan_dosis);
-                //         $dataObatRacik['racik'] = $racik;
-                //         // dd($dataObatRacik);
+                    foreach ($racikObat as $racik) {
+                        echo json_encode([
+                            "medication_form_code" => $racik->medication_form_code,
+                            "signa1" => $racik->signa1,
+                            "signa2" => $racik->signa2,
+                            "signa_period" => $racik->signa_period,
+                            "satusehat_route_id" => $racik->satusehat_route_id,
+                            "obat" => $racik->obat,
+                            "bentuk_sediaan" => $racik->bentuk_sediaan
+                        ]);
+                        die;
 
-                //         if (count($dataObatRacik['medication']) > 0 && count($dataObatRacik['dosis'])) {
-                //             $racikObatIds[] = $racik->id;
-                //             $bundle->setMedicationPrescriptionMixed($prefixEncounter . $satusehat_phases->id_encounter, $dokter, $dataObatRacik);
-                //         }
-                //     }
-                // }
+                        if (empty($racik->medication_form_code)  || empty($racik->signa1) || empty($racik->signa2) || empty($racik->signa_period) || empty($racik->satusehat_route_id) ||   empty($racik->obat) || empty($racik->bentuk_sediaan)) continue;
+                        $racikObatIds[] = $racik->id;
+                        $bundle->setMedicationPrescriptionMixed($prefixEncounter . $satusehat_phases->id_encounter, $dokter, $racik);
+                    }
+                }
 
-                // echo json_encode($bundle);
-                // die;
+                die;
+
+
 
                 $result = $bundle->send($satusehat_phases->id_encounter);
 
