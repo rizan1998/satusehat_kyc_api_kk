@@ -7,9 +7,10 @@ use DateTimeZone;
 use Ramsey\Uuid\Uuid;
 use GuzzleHttp\Client;
 use App\Models\Perusahaan;
-use App\Models\Satusehat_kfa;
+use App\Models\ScheduleLog;
 use GuzzleHttp\Psr7\Request;
 use App\Models\CatatanPasien;
+use App\Models\Satusehat_kfa;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -1455,9 +1456,24 @@ class Bundle
         }
 
         if ($statusCode == 200) {
-            if ($response['entry'][0]['response']['resourceID'] == 'Encounter') {
+            if ($response['entry'][0]['response']['resourceType'] == 'Encounter') {
                 $idEncounter = $response['entry'][0]['response']['resourceID'];
             }
+
+            if (count($this->bundleEntry['resource']) == count($response['entry'])) {
+                foreach ($this->bundleEntry['resource'] as $key => $value) {
+                    $uuid_local = str_replace("urn:uuid:", "", $value['fullUrl']);
+                    ScheduleLog::create([
+                        'schedule_log_name' => $value['resource']['resourceType'],
+                        'status' => 'berhasil',
+                        'description_schedule_log' => $this->bundleEntry['title_payload'][$key],
+                        'uuid_local' => $uuid_local,
+                        'uuid_satusehat' => $response['entry'][$key]['response']['resourceID'],
+                        'created_at' => now(),
+                    ]);
+                }
+            }
+
             return [
                 'ket' => 'yes',
                 'result' => $response,
@@ -1479,6 +1495,32 @@ class Bundle
                 'message' => 'Server error',
             ];
         }
+
+        // if ($statusCode == 200) {
+        //     if ($response['entry'][0]['response']['resourceID'] == 'Encounter') {
+        //         $idEncounter = $response['entry'][0]['response']['resourceID'];
+        //     }
+        //     return [
+        //         'ket' => 'yes',
+        //         'result' => $response,
+        //         'body' => json_encode($body),
+        //         'id_encounter' => $idEncounter,
+        //     ];
+        // } else if ($statusCode == 400) {
+        //     return [
+        //         'key' => 'no',
+        //         'result' => $response,
+        //         'body' => json_encode($body),
+        //         'message' => $response['issue'][0]['details']['text'],
+        //     ];
+        // } else {
+        //     return [
+        //         'key' => 'no',
+        //         'result' => $response,
+        //         'body' => json_encode($body),
+        //         'message' => 'Server error',
+        //     ];
+        // }
     }
 
 

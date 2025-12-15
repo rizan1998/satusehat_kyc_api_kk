@@ -11,6 +11,7 @@ use App\Models\RacikObat;
 use App\Models\ResepObat;
 use App\Models\Perusahaan;
 use App\Models\Pendaftaran;
+use App\Models\ScheduleLog;
 use Illuminate\Http\Request;
 use App\Models\CatatanPasien;
 use App\Models\SatusehatPhase;
@@ -175,7 +176,6 @@ class SatuSehatController extends Controller
                             "obat" => $racik->obat,
                             "bentuk_sediaan" => $racik->bentuk_sediaan
                         ]);
-                        die;
 
                         if (empty($racik->medication_form_code)  || empty($racik->signa1) || empty($racik->signa2) || empty($racik->signa_period) || empty($racik->satusehat_route_id) ||   empty($racik->obat) || empty($racik->bentuk_sediaan)) continue;
                         $racikObatIds[] = $racik->id;
@@ -183,7 +183,7 @@ class SatuSehatController extends Controller
                     }
                 }
 
-                die;
+
 
 
 
@@ -198,12 +198,26 @@ class SatuSehatController extends Controller
 
                     // CatatanPasien::whereIn('id', $patientNoteIds)->update(['satusehat_status' => true]);
                     PemeriksaanTindakan::whereIn('id', $pemeriksaanTindakanIds)->update(['satusehat_status' => true]);
-                    // ResepObat::whereIn('id', $resepObatIds)->update(['satusehat_status' => true]);
-                    // Racik::whereIn('id', $racikObatIds)->update(['satusehat_status' => true]);
+                    ResepObat::whereIn('id', $resepObatIds)->update(['satusehat_status' => true]);
+                    Racik::whereIn('id', $racikObatIds)->update(['satusehat_status' => true]);
+
+                    ScheduleLog::create([
+                        'schedule_log_name' => 'kirim sukses',
+                        'status' => 'berhasil',
+                        'description_schedule_log' => 'id_kunjungan = ' . $kunjungan->id . ' nama = ' . $pendaftaran->nama_lengkap,
+                        'created_at' => now()
+                    ]);
 
                     // return response()->json($result);
                     return response()->json(['ket' => 'no', 'message' => 'data terkirim', 'status' => true]);
                 } else {
+                    ScheduleLog::create([
+                        'schedule_log_name' => 'id_encounter not found',
+                        'status' => 'tidak berhasil',
+                        'description_schedule_log' => 'id_kunjungan = ' . $kunjungan->id . ' nama = ' . $pendaftaran->nama_lengkap,
+                        'created_at' => now()
+                    ]);
+
                     return response()->json(['ket' => 'no', 'message' => 'data tidak terkirim', 'status' => false]);
                 }
             } catch (\Exception $e) {
