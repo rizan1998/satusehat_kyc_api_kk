@@ -116,6 +116,15 @@ class SatuSehatController extends Controller
                             //     $bundle->setDiagnosicReport($prefixEncounter . $satusehat_phases->id_encounter, $lab->id, $rincian, $specimenLabId, $lab->id, $rincian);
                             // }
                         } else {
+                            if (
+                                empty($lab->SampelLab) ||
+                                empty($lab->PemeriksaanLab->kategori_loinc_id) ||
+                                empty($lab->PemeriksaanLab->Code) ||
+                                ($lab->PemeriksaanLab->jenis_nilai == 'NUMBER' && empty($lab->PemeriksaanLab->SatusehatSatuan)) ||
+                                empty($lab->PemeriksaanLab->DiagnosticReportCategory) ||
+                                empty($lab->DiagnosticReportConclusion)
+                            ) continue;
+
                             $serviceRequestLabId  =  $bundle->setServiceRequest($prefixEncounter . $satusehat_phases->id_encounter, $lab->id, $lab, $dokter);
                             Log::info("lab_id: " . $lab->id);
                             $specimenLabId = $bundle->setSpecimen($prefixEncounter . $satusehat_phases->id_encounter, $serviceRequestLabId, $lab->id, $lab);
@@ -160,22 +169,13 @@ class SatuSehatController extends Controller
                 if (empty($satusehat_phases->medication)) {
                     foreach ($resepObat as $resep) {
 
-                        if (empty($resep->obat->satusehat_medication_form) || empty($resep->obat->satusehat_kfa) || empty($resep->signa1) || empty($resep->signa2) || empty($resep->signa_period) || empty($resep->total)) continue;
+                        if (empty($resep->obat->satusehat_medication_form) || empty($resep->obat->satusehat_kfa) || empty($resep->signa1) || empty($resep->signa2) || empty($resep->signa_period) || empty($resep->total) || empty($resep->route)) continue;
                         $resepObatIds[] = $resep->id;
                         $bundle->setMedicationPrescription($prefixEncounter . $satusehat_phases->id_encounter, $dokter, $resep);
                     }
 
 
                     foreach ($racikObat as $racik) {
-                        echo json_encode([
-                            "medication_form_code" => $racik->medication_form_code,
-                            "signa1" => $racik->signa1,
-                            "signa2" => $racik->signa2,
-                            "signa_period" => $racik->signa_period,
-                            "satusehat_route_id" => $racik->satusehat_route_id,
-                            "obat" => $racik->obat,
-                            "bentuk_sediaan" => $racik->bentuk_sediaan
-                        ]);
 
                         if (empty($racik->medication_form_code)  || empty($racik->signa1) || empty($racik->signa2) || empty($racik->signa_period) || empty($racik->satusehat_route_id) ||   empty($racik->obat) || empty($racik->bentuk_sediaan)) continue;
                         $racikObatIds[] = $racik->id;

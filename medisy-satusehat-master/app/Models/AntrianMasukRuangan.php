@@ -10,6 +10,7 @@ class AntrianMasukRuangan extends Model
     use HasFactory;
 
     protected $table = 'kk_antrian_masuk_ruangan';
+    protected $guarded = ['id'];
     public $timestamps = false;
 
     const CREATED_AT = 'created',

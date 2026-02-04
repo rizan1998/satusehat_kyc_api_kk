@@ -378,7 +378,6 @@ class Bundle
     {
         if ($idEncounter == null) throw new \Exception("Please insert encounter before set observation");
         $uuid = Uuid::uuid4()->toString();
-
         $this->bundleEntry['title_payload'][] = 'specimen';
         $this->bundleEntry['resource'][] = [
             'fullUrl' => "urn:uuid:" . $uuid,
@@ -1442,6 +1441,9 @@ class Bundle
         ];
 
         Log::info("body", ['body' => $body]);
+        echo json_encode($body);
+        die;
+
 
         $url = $oAuthClient->base_url;
         $request = new Request('POST', $url, $headers, collect($body));
