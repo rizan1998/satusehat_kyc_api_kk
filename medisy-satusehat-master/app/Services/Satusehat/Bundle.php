@@ -1440,9 +1440,9 @@ class Bundle
             'Authorization' => 'Bearer ' . $access_token,
         ];
 
-        Log::info("body", ['body' => $body]);
-        echo json_encode($body);
-        die;
+        // Log::info("body", ['body' => $body]);
+        // echo json_encode($body);
+        // die;
 
 
         $url = $oAuthClient->base_url;

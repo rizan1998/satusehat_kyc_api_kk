@@ -186,7 +186,6 @@ class SatuSehatController extends Controller
 
 
 
-
                 $result = $bundle->send($satusehat_phases->id_encounter);
 
                 if (!empty($result['id_encounter'])) {
