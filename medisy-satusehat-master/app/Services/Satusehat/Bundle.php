@@ -49,7 +49,7 @@ class Bundle
                 'identifier' => [
                     [
                         "system" => "http://sys-ids.kemkes.go.id/encounter/" . $this->organizationID,
-                        "value"  => $kunjungan_id . "ZT02"
+                        "value"  => $kunjungan_id . ""
                     ]
                 ],
                 'subject' => [
@@ -804,7 +804,7 @@ class Bundle
                     [
                         "system" => "http://sys-ids.kemkes.go.id/medication/" . $this->organizationID,
                         "use" => "official",
-                        "value" => (string) $resepObat->id . "ZT02"
+                        "value" => (string) $resepObat->id . ""
                     ]
                 ],
                 "code" => [
@@ -881,7 +881,7 @@ class Bundle
                     [
                         "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
                         "use" => "official",
-                        "value" => (string) $resepObat->id . "ZT02",
+                        "value" => (string) $resepObat->id . "",
                     ],
                 ],
                 "status" => "completed",
@@ -989,12 +989,12 @@ class Bundle
                     [
                         "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
                         "use" => "official",
-                        "value" => (string) $resepObat->id . "ZT02"
+                        "value" => (string) $resepObat->id . ""
                     ],
                     [
                         "system" => "http://sys-ids.kemkes.go.id/prescription-item/" . $this->organizationID,
                         "use" => "official",
-                        "value" => (string) $resepObat->id . "ZT02" . '-1'
+                        "value" => (string) $resepObat->id . "" . '-1'
                     ],
                 ],
                 "status" => "completed",
@@ -1099,7 +1099,7 @@ class Bundle
             [
                 "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
                 "use" => "official",
-                "value" => (string) $racik->id . "ZT02",
+                "value" => (string) $racik->id . "",
             ]
         ];
 
@@ -1153,7 +1153,7 @@ class Bundle
                         [
                             "system" => "http://sys-ids.kemkes.go.id/medication/" . $this->organizationID,
                             "use" => "official",
-                            "value" => (string) $racik->id . "ZT02"
+                            "value" => (string) $racik->id . ""
                         ]
                     ],
                     "status" => "active",
@@ -1289,12 +1289,12 @@ class Bundle
                         [
                             "system" => "http://sys-ids.kemkes.go.id/prescription/" . $this->organizationID,
                             "use" => "official",
-                            "value" => (string) $racik->id . "ZT02"
+                            "value" => (string) $racik->id . ""
                         ],
                         [
                             "system" => "http://sys-ids.kemkes.go.id/prescription-item/" . $this->organizationID,
                             "use" => "official",
-                            "value" => (string) $racik->id . "ZT02" . '-1'
+                            "value" => (string) $racik->id . "" . '-1'
                         ],
                     ],
                     "status" => "completed",

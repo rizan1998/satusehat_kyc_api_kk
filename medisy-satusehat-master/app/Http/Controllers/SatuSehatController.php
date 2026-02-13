@@ -142,7 +142,6 @@ class SatuSehatController extends Controller
 
                 if (empty($satusehat_phases->service_request)) {
                     $pemeriskaanLab = PemeriksaanTambahanLab::with(['Petugas', 'PemeriksaanLab', 'PemeriksaanLab.DiagnosticReportCategory', 'DiagnosticReportConclusion',  'PemeriksaanLab.SatusehatSatuan', 'PemeriksaanLab.value_codeable_concept1_data', 'PemeriksaanLab.value_codeable_concept2_data', 'SampelLab', 'SampelLab.Snomed'])->where('id_kunjungan', $kunjungan->id)->get();
-
                     foreach ($pemeriskaanLab as $lab) {
                         if ($lab->jenis_nilai == "PAKET") {
                             // $rincianPaket =  RincianPaketLab::with('PemeriksaanLab')->where('id_paket', $lab->id)->get();
@@ -154,18 +153,8 @@ class SatuSehatController extends Controller
                             //     $bundle->setDiagnosicReport($prefixEncounter . $satusehat_phases->id_encounter, $lab->id, $rincian, $specimenLabId, $lab->id, $rincian);
                             // }
                         } else {
-                            Log::info("pemeriksaantambahan lab", ['pemeriksaantambahan lab' => $pemeriskaanLab, 'lab' => $lab]);
-                            Log::info("pemeriksaantambahan lab id" . $lab->id);
-                            Log::info("sampel lab id: " . $lab->SampelLab);
-                            Log::info("pemeriksaan lab id: " . $lab->PemeriksaanLab->id);
-                            Log::info("pemeriksaann Lab Kategori Loinc id : " . $lab->PemeriksaanLab->kategori_loinc_id);
-                            Log::info("pemeriksaan code : " . $lab->PemeriksaanLab->Code);
-                            Log::info("pemeriksaan jenis nilai : " . $lab->PemeriksaanLab->jenis_nilai);
-                            Log::info("pemeriksaan satu sehat satuan : " . $lab->PemeriksaanLab->SatusehatSatuan);
-                            Log::info("pemeriksaan DiagnosticReportCategory : " . $lab->PemeriksaanLab->DiagnosticReportCategory);
-                            Log::info("DiagnosticReportConclusion : " . $lab->DiagnosticReportConclusion);
 
-                            Log::info("LAAAAABBB", ['lab' => $lab]);
+
 
                             if (
                                 empty($lab->SampelLab) ||
