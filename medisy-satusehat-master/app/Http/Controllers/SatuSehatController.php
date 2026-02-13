@@ -47,14 +47,51 @@ class SatuSehatController extends Controller
                 $antrianMasukAnamnesa = AntrianMasukRuangan::where('id_antrian', $kunjungan['id_antrian'])->where('keterangan', AntrianMasukRuangan::KETERANGAN_ANAMNESA)->first();
                 $antrianMasukDokter = AntrianMasukRuangan::where('id_antrian', $kunjungan['id_antrian'])->where('keterangan', AntrianMasukRuangan::KETERANGAN_DOKTER)->first();
                 $getLocation = RuanganPemeriksaan::where('id_ruangan_satusehat', $kunjungan->id_location)->first();
-                if (empty($getLocation)) {
-                    return response()->json(['ket' => 'no', 'message' => 'Lokasi is not found', 'status' => false]);
-                }
+                // if (empty($getLocation)) {
+                //     return response()->json(['ket' => 'no', 'message' => 'Lokasi is not found', 'status' => false]);
+                // }
 
-                $location = [
-                    'id_ruangan_satusehat' => $kunjungan->id_location,
-                    'nama_ruangan' => $getLocation->nama . ' Ruangan ' . $getLocation->ruangan
-                ];
+                // $location = [
+                //     'id_ruangan_satusehat' => $kunjungan->id_location,
+                //     'nama_ruangan' => $getLocation->nama . ' Ruangan ' . $getLocation->ruangan
+                // ];
+
+
+                $location = [];
+                $ruangan_pemeriksaan = RuanganPemeriksaan::where('location_type', $kunjungan->id_layanan)
+                    ->where('status_active', 'AKTIF')
+                    ->first();
+
+                if (is_null($getLocation)) {
+                    if (is_null($kunjungan->id_location)) {
+                        if ($ruangan_pemeriksaan) {
+                            $location = [
+                                'id_ruangan_satusehat' => $ruangan_pemeriksaan->id_ruangan_satusehat,
+                                'nama_ruangan' => $ruangan_pemeriksaan->nama . ' Ruangan ' . $ruangan_pemeriksaan->ruangan
+                            ];
+                        } else {
+                            // fallback jika ruangan_pemeriksaan juga tidak ditemukan
+                            ScheduleLog::create([
+                                'schedule_log_name' => 'lokasi satusehat',
+                                'status' => 'tidak berhasil',
+                                'description_schedule_log' => 'id_kunjungan = ' . $kunjungan->id . ' nama = ' . $pendaftaran->nama_lengkap,
+                                'created_at' => now()
+                            ]);
+
+                            return response()->json(['ket' => 'no', 'message' => 'Lokasi is not found']);
+                        }
+                    } else {
+                        $location = [
+                            'id_ruangan_satusehat' => $ruangan_pemeriksaan->id_ruangan_satusehat,
+                            'nama_ruangan' => $ruangan_pemeriksaan->nama . ' Ruangan ' . $ruangan_pemeriksaan->ruangan
+                        ];
+                    }
+                } else {
+                    $location = [
+                        'id_ruangan_satusehat' => $ruangan_pemeriksaan->id_ruangan_satusehat,
+                        'nama_ruangan' => $getLocation->nama . ' Ruangan ' . $getLocation->ruangan
+                    ];
+                }
 
 
 
@@ -105,6 +142,7 @@ class SatuSehatController extends Controller
 
                 if (empty($satusehat_phases->service_request)) {
                     $pemeriskaanLab = PemeriksaanTambahanLab::with(['Petugas', 'PemeriksaanLab', 'PemeriksaanLab.DiagnosticReportCategory', 'DiagnosticReportConclusion',  'PemeriksaanLab.SatusehatSatuan', 'PemeriksaanLab.value_codeable_concept1_data', 'PemeriksaanLab.value_codeable_concept2_data', 'SampelLab', 'SampelLab.Snomed'])->where('id_kunjungan', $kunjungan->id)->get();
+
                     foreach ($pemeriskaanLab as $lab) {
                         if ($lab->jenis_nilai == "PAKET") {
                             // $rincianPaket =  RincianPaketLab::with('PemeriksaanLab')->where('id_paket', $lab->id)->get();
@@ -116,6 +154,19 @@ class SatuSehatController extends Controller
                             //     $bundle->setDiagnosicReport($prefixEncounter . $satusehat_phases->id_encounter, $lab->id, $rincian, $specimenLabId, $lab->id, $rincian);
                             // }
                         } else {
+                            Log::info("pemeriksaantambahan lab", ['pemeriksaantambahan lab' => $pemeriskaanLab, 'lab' => $lab]);
+                            Log::info("pemeriksaantambahan lab id" . $lab->id);
+                            Log::info("sampel lab id: " . $lab->SampelLab);
+                            Log::info("pemeriksaan lab id: " . $lab->PemeriksaanLab->id);
+                            Log::info("pemeriksaann Lab Kategori Loinc id : " . $lab->PemeriksaanLab->kategori_loinc_id);
+                            Log::info("pemeriksaan code : " . $lab->PemeriksaanLab->Code);
+                            Log::info("pemeriksaan jenis nilai : " . $lab->PemeriksaanLab->jenis_nilai);
+                            Log::info("pemeriksaan satu sehat satuan : " . $lab->PemeriksaanLab->SatusehatSatuan);
+                            Log::info("pemeriksaan DiagnosticReportCategory : " . $lab->PemeriksaanLab->DiagnosticReportCategory);
+                            Log::info("DiagnosticReportConclusion : " . $lab->DiagnosticReportConclusion);
+
+                            Log::info("LAAAAABBB", ['lab' => $lab]);
+
                             if (
                                 empty($lab->SampelLab) ||
                                 empty($lab->PemeriksaanLab->kategori_loinc_id) ||
@@ -210,6 +261,7 @@ class SatuSehatController extends Controller
                     // return response()->json($result);
                     return response()->json(['ket' => 'no', 'message' => 'data terkirim', 'status' => true]);
                 } else {
+                    Log::info('laravel', ['result' => $result]);
                     ScheduleLog::create([
                         'schedule_log_name' => 'id_encounter not found',
                         'status' => 'tidak berhasil',
