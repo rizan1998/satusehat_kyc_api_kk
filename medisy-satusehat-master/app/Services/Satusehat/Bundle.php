@@ -296,6 +296,7 @@ class Bundle
                     "display"   => "Pemeriksaan anamnesa " . $this->patientDisplay . " " . $kunjunganTanggal
                 ],
                 'effectiveDateTime' => $this->formattedDate($tanggal),
+                'issued' => $this->formattedDate($tanggal),
                 'valueQuantity' => $valueQuantity,
             ],
             "request" => ["method" => "POST", "url" => "Observation"]
