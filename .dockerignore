@@ -1,0 +1,5 @@
+.git
+.env
+medisy-satusehat-master/vendor
+medisy-satusehat-master/node_modules
+medisy-satusehat-master/storage/logs/*
