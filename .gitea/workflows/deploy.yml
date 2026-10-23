@@ -1,0 +1,133 @@
+name: CI/CD • SatuSehat KYC API (Klinik Keluarga)
+run-name: Build & Push (${{ gitea.ref_name }})
+
+on:
+  push:
+    tags:
+      - "kyc-*"
+      - "satusehat-*"
+      - "v*"
+
+concurrency:
+  group: satusehat-kyc-build
+  cancel-in-progress: true
+
+jobs:
+  # ─── Job 1: Detect version & target (staging vs prod) ───
+  prepare:
+    runs-on: ubuntu-latest
+    container:
+      image: catthehacker/ubuntu:act-latest
+    outputs:
+      is_prod: ${{ steps.detect.outputs.is_prod }}
+      base_version: ${{ steps.detect.outputs.base_version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect tag & version
+        id: detect
+        shell: bash
+        run: |
+          TAG_NAME="${{ gitea.ref_name }}"
+          if [[ "$TAG_NAME" == kyc-* ]]; then
+            RAW_VERSION="${TAG_NAME#kyc-}"
+          elif [[ "$TAG_NAME" == satusehat-* ]]; then
+            RAW_VERSION="${TAG_NAME#satusehat-}"
+          elif [[ "$TAG_NAME" == v* ]]; then
+            RAW_VERSION="${TAG_NAME#v}"
+          else
+            RAW_VERSION="$TAG_NAME"
+          fi
+
+          IS_PROD="false"
+          V="$RAW_VERSION"
+          if [[ "$V" == *"+prod" ]]; then
+            IS_PROD="true"
+            V="${V%+prod}"
+          fi
+
+          echo "is_prod=$IS_PROD"     >> $GITHUB_OUTPUT
+          echo "base_version=$V"      >> $GITHUB_OUTPUT
+
+          echo "Resolved:"
+          echo "  IS_PROD      = $IS_PROD"
+          echo "  BASE_VERSION = $V"
+
+  # ─── Job 2: Build & Push Staging ───
+  build-staging:
+    runs-on: ubuntu-latest
+    container:
+      image: catthehacker/ubuntu:act-latest
+    needs: prepare
+    if: needs.prepare.outputs.is_prod == 'false'
+    env:
+      IMAGE_NAME: registry.medisy.id/madtive/satusehat-kyc-api-kk
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.medisy.id
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_SECRET }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=moby/buildkit:v0.16.0
+
+      - name: Build & Push (:<version> and :staging)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.base_version }}
+            ${{ env.IMAGE_NAME }}:staging
+          labels: |
+            org.opencontainers.image.source=${{ gitea.repository }}
+            org.opencontainers.image.revision=${{ gitea.sha }}
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  # ─── Job 3: Build & Push Production ───
+  build-prod:
+    runs-on: ubuntu-latest
+    container:
+      image: catthehacker/ubuntu:act-latest
+    needs: prepare
+    if: needs.prepare.outputs.is_prod == 'true'
+    env:
+      IMAGE_NAME: registry.medisy.id/madtive/satusehat-kyc-api-kk
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.medisy.id
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_SECRET }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=moby/buildkit:v0.16.0
+
+      - name: Build & Push (:<version>, :prod, and :latest)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.base_version }}
+            ${{ env.IMAGE_NAME }}:prod
+            ${{ env.IMAGE_NAME }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ gitea.repository }}
+            org.opencontainers.image.revision=${{ gitea.sha }}
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache,mode=max
