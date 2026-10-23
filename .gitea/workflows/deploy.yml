@@ -61,7 +61,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.is_prod == 'false'
     env:
-      IMAGE_NAME: registry.medisy.id/madtive/satusehat-kyc-api-kk
+      IMAGE_NAME: registry.medisy.id/madtive/satusehat-klinikkeluarga
     steps:
       - uses: actions/checkout@v4
 
@@ -100,7 +100,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.is_prod == 'true'
     env:
-      IMAGE_NAME: registry.medisy.id/madtive/satusehat-kyc-api-kk
+      IMAGE_NAME: registry.medisy.id/madtive/satusehat-klinikkeluarga
     steps:
       - uses: actions/checkout@v4
 

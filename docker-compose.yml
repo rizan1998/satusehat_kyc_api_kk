@@ -7,7 +7,7 @@ networks:
 services:
   satusehat_kyc_api_kk:
     container_name: satusehat_kyc_api_kk
-    image: registry.medisy.id/madtive/satusehat-kyc-api-kk:latest
+    image: registry.medisy.id/madtive/satusehat-klinikkeluarga:staging
     restart: unless-stopped
     build:
       context: .
@@ -35,7 +35,7 @@ services:
 
   satusehat_kyc_api_kk_queue:
     container_name: satusehat_kyc_api_kk_queue
-    image: registry.medisy.id/madtive/satusehat-kyc-api-kk:latest
+    image: registry.medisy.id/madtive/satusehat-klinikkeluarga:staging
     restart: unless-stopped
     command: >
       bash -c "
@@ -50,7 +50,7 @@ services:
 
   # satusehat_kyc_api_kk_queue:
   #   container_name: satusehat_kyc_api_kk_queue
-  #   image: registry.medisy.id/madtive/satusehat-kyc-api-kk:latest
+  #   image: registry.medisy.id/madtive/satusehat-klinikkeluarga:staging
   #   restart: unless-stopped
   #   command: php artisan queue:work --queue=sync --tries=3 --timeout=60
 
